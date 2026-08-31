@@ -1,5 +1,9 @@
 # Bitácora de Diagnóstico — Taller de Tecnología
 
+- **App para estudiantes:** https://oneill162.github.io/bitacora-taller/
+- **Proyecto Supabase:** `glwinbslxgurmzyvttyo` (us-east-2)
+- **Código de clase actual:** `TALLER-2026`
+
 Tres piezas que hacen una sola cosa: que lo que los estudiantes diagnostican todos los
 días se acumule en un lugar consultable.
 
