@@ -3,3 +3,12 @@ node_modules/
 .obsidian/workspace*.json
 .obsidian/cache
 .DS_Store
+
+# ------------------------------------------------------------------
+# DATOS DE ESTUDIANTES — NUNCA a un repositorio público.
+# Estas carpetas las llena sync.mjs con nombres, grupos y el trabajo
+# de cada estudiante. El manual y las plantillas sí se versionan.
+# ------------------------------------------------------------------
+vault/02-Equipos/
+vault/03-Estudiantes/
+vault/04-Diagnosticos/

@@ -4,7 +4,8 @@ Tres piezas que hacen una sola cosa: que lo que los estudiantes diagnostican tod
 días se acumule en un lugar consultable.
 
 ```
-app/       Lo que abren los estudiantes del teléfono. HTML plano + Supabase.
+docs/      Lo que abren los estudiantes del teléfono. HTML plano + Supabase.
+           Se llama docs/ porque es la carpeta que GitHub Pages publica.
 supabase/  El esquema de la base de datos, con Row Level Security.
 sync/      Baja lo entregado y lo escribe como notas en el vault.
 vault/     El vault de Obsidian: manual, plantillas y todo lo acumulado.
@@ -18,7 +19,7 @@ navegador y pida todas las hojas, el servidor le devuelve solo las suyas. El
 instructor ve todo porque su perfil tiene `rol = 'instructor'`, y esa comprobación
 también la hace la base de datos.
 
-La llave `anon` que va en `app/config.js` **no es un secreto** — está diseñada para
+La llave `anon` que va en `docs/config.js` **no es un secreto** — está diseñada para
 vivir en el navegador. Lo que protege los datos es RLS. La que sí es secreta es
 `service_role`, que solo vive en tu `.env` local.
 
@@ -58,7 +59,7 @@ solo necesita usuario y contraseña. Solo el instructor puede leer o cambiar el
 código; un estudiante que consulte la tabla `ajustes` recibe cero filas.
 
 ### 3. Configurar la app
-En `app/config.js` pon la URL del proyecto y la llave `anon` (Project Settings → API).
+En `docs/config.js` pon la URL del proyecto y la llave `anon` (Project Settings → API).
 
 ### 4. Nombrarte instructor
 Después de crear tu propia cuenta desde la app, en el SQL Editor:
@@ -71,12 +72,11 @@ update public.perfiles set rol = 'instructor' where usuario = 'tu_usuario';
 ```bash
 gh auth login
 gh repo create bitacora-taller --public --source=. --push
-gh api -X POST repos/:owner/bitacora-taller/pages -f build_type=legacy \
+gh api -X POST repos/:owner/bitacora-taller/pages \
   -f 'source[branch]=main' -f 'source[path]=/docs'
 ```
-GitHub Pages sirve desde `/docs` o desde la raíz; lo más simple es publicar la
-carpeta `app/` renombrada a `docs/`, o activar Pages desde la pestaña Settings del
-repo apuntando a `main /docs`.
+GitHub Pages sirve la carpeta `docs/` tal cual, sin build ni Actions. Cada `git
+push` a `main` actualiza el sitio en un par de minutos.
 
 Los estudiantes abren la dirección y le dan a *Añadir a la pantalla de inicio*:
 el `manifest.json` la instala como app con su propio ícono.
@@ -105,6 +105,18 @@ Abre `vault/` como vault en Obsidian e instala **Dataview** (las tablas de
   datos: lo que edites en `04-Diagnosticos` se pierde en la próxima corrida. Tus
   notas van en `02-Equipos` y `03-Estudiantes`, que el script nunca sobreescribe.
 
+## El repositorio es público, los datos no
+
+El repo lleva el código, el manual y las plantillas. **No lleva datos de
+estudiantes.** `.gitignore` excluye `vault/02-Equipos`, `vault/03-Estudiantes` y
+`vault/04-Diagnosticos`, que son justo las carpetas que `sync.mjs` llena con
+nombres, grupos y el trabajo de cada quien. Si alguna vez las necesitas fuera de
+tu máquina, van a un repo privado aparte, nunca a este.
+
+La llave que sí está en el repo (`sb_publishable_...`) está diseñada para vivir en
+el navegador de cualquiera. La que nunca puede estar es `service_role`, que vive
+solo en tu `.env` local y que `.gitignore` bloquea.
+
 ## Datos de estudiantes
 
 El sistema pide usuario, nombre, grupo y escuela — nada más. No pide correo,
@@ -118,7 +130,7 @@ guardados en Supabase (región us-east-2), borrables con
 Supabase valida el dominio del correo antes de crear la cuenta. Rechaza
 `example.com` y también `taller.pr` (probado). `taller.local` pasa la validación
 y no existe como dominio real, que es justo lo que queremos: nunca se envía un
-correo a esa dirección. Si cambias `DOMINIO_LOGIN` en `app/config.js`, prueba
+correo a esa dirección. Si cambias `DOMINIO_LOGIN` en `docs/config.js`, prueba
 antes que Supabase acepte el dominio nuevo, o los estudiantes no podrán
 registrarse.
 
