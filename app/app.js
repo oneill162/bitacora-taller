@@ -99,6 +99,11 @@ function vistaAcceso(){
                autocomplete="current-password" placeholder="Mínimo 6 caracteres">
       </label>
       <div id="extra" hidden class="campos">
+        <label class="f">Código de clase
+          <input id="a-codigo" autocapitalize="characters" autocorrect="off" spellcheck="false"
+                 placeholder="Te lo da el instructor">
+          <span class="pista">Solo hace falta al crear la cuenta, no para entrar.</span>
+        </label>
         <label class="f">Nombre completo
           <input id="a-nombre" autocomplete="name" placeholder="Luis Rivera"></label>
         <label class="f">Grupo o sección
@@ -140,24 +145,27 @@ function montarAcceso(){
     }
     try{
       if(modo === "crear"){
-        const { data: libre, error: eChk } = await sb.rpc("usuario_disponible", { p_usuario: usuario });
-        if(eChk) throw eChk;
-        if(libre === false){ aviso("Ese usuario ya está tomado. Escoge otro."); btn.disabled = false; return; }
-
-        const { data, error } = await sb.auth.signUp({
-          email: correo, password: clave,
-          options: { data: {
-            usuario,
+        // La cuenta la crea una Edge Function con la API de administración:
+        // así queda confirmada de una y no se envía ningún correo. auth.signUp
+        // intentaría escribirle a un dominio que no existe y chocaría con el
+        // límite de correos del plan gratuito.
+        const { error } = await sb.functions.invoke("registro", {
+          body: {
+            usuario, password: clave,
+            codigo:  $("#a-codigo").value.trim(),
             nombre:  $("#a-nombre").value.trim(),
             grupo:   $("#a-grupo").value.trim(),
             escuela: $("#a-escuela").value.trim()
-          }}
+          }
         });
-        if(error) throw error;
-        if(!data.session){
-          aviso("Cuenta creada. Falta activarla: avisa al instructor.", "exito");
-          btn.disabled = false; return;
+        if(error){
+          let msg = "No se pudo crear la cuenta. Revisa el internet y vuelve a intentar.";
+          try { msg = (await error.context.json()).error || msg; } catch(_){}
+          aviso(msg); btn.disabled = false; return;
         }
+        // cuenta creada: entrar de una vez
+        const { data, error: eEntrar } = await sb.auth.signInWithPassword({ email: correo, password: clave });
+        if(eEntrar) throw eEntrar;
         await cargarPerfil(data.session.user.id);
       } else {
         const { data, error } = await sb.auth.signInWithPassword({ email: correo, password: clave });

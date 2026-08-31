@@ -28,13 +28,34 @@ vivir en el navegador. Lo que protege los datos es RLS. La que sí es secreta es
 Crea el proyecto en Supabase y corre `supabase/migrations/0001_esquema.sql`
 (SQL Editor del panel, o `supabase db push` si usas el CLI).
 
-### 2. Apagar la confirmación por correo
-Los estudiantes entran con usuario, no con correo: la app arma `usuario@taller.local`
-por detrás. Ese dominio no existe, así que **hay que apagar la confirmación**:
+### 2. Desplegar la Edge Function del registro
+```bash
+supabase functions deploy registro --no-verify-jwt
+```
+(o desde el panel). **No hace falta tocar la configuración de Auth.**
 
-> Authentication → Sign In / Providers → Email → **Confirm email: off**
+El registro no pasa por `auth.signUp`, y esa es una decisión deliberada. Los
+estudiantes entran con usuario, no con correo: la app arma `usuario@taller.local`
+por detrás, un dominio que no existe. `auth.signUp` intentaría enviarle un correo
+de confirmación a esa dirección, y además el plan gratuito solo permite ~2 correos
+por hora — con 30 estudiantes registrándose el mismo día, el tercero se queda fuera.
 
-Sin esto, cada cuenta nueva queda esperando un correo que nunca llega.
+La Edge Function `registro` crea la cuenta ya confirmada con la API de
+administración, que no envía ningún correo y no tiene ese límite. Corre con
+`verify_jwt = false` porque el estudiante todavía no tiene sesión; su autenticación
+propia es el **código de clase**.
+
+### 2b. El código de clase
+Como el endpoint de registro es público, hace falta un código para que no cualquiera
+abra cuentas. Empieza en `TALLER-2026`. Cámbialo cada semestre:
+
+```sql
+update public.ajustes set valor = 'TU-CODIGO-NUEVO' where clave = 'codigo_registro';
+```
+
+El estudiante lo escribe **una sola vez**, al crear la cuenta. Para entrar después
+solo necesita usuario y contraseña. Solo el instructor puede leer o cambiar el
+código; un estudiante que consulte la tabla `ajustes` recibe cero filas.
 
 ### 3. Configurar la app
 En `app/config.js` pon la URL del proyecto y la llave `anon` (Project Settings → API).
@@ -77,6 +98,9 @@ Abre `vault/` como vault en Obsidian e instala **Dataview** (las tablas de
   sin señal está la plantilla en papel de `01-Plantillas`.
 - **No recupera contraseñas solo.** Como no hay correo real, si un estudiante
   olvida la suya se la reinicias desde Authentication → Users en el panel.
+- **No comprueba contraseñas filtradas.** Supabase puede validar contra
+  HaveIBeenPwned; está apagado. Se enciende en Authentication → Policies si
+  quieres que los estudiantes no usen contraseñas conocidas.
 - **No sincroniza de vuelta.** El vault es de solo lectura respecto a la base de
   datos: lo que edites en `04-Diagnosticos` se pierde en la próxima corrida. Tus
   notas van en `02-Equipos` y `03-Estudiantes`, que el script nunca sobreescribe.
@@ -97,3 +121,26 @@ y no existe como dominio real, que es justo lo que queremos: nunca se envía un
 correo a esa dirección. Si cambias `DOMINIO_LOGIN` en `app/config.js`, prueba
 antes que Supabase acepte el dominio nuevo, o los estudiantes no podrán
 registrarse.
+
+## Lo que encontraron las pruebas
+
+Antes de darlo por bueno probé el aislamiento con dos cuentas reales, y apareció
+un hueco de verdad: la política `perfiles_editar` permitía que un estudiante
+editara su propio perfil, pero no restringía **qué columnas**. Un
+`PATCH {"rol":"instructor"}` sobre uno mismo funcionaba, y con eso el estudiante
+leía el trabajo de toda la clase y el código de registro.
+
+Lo cierra la migración `0004_proteger_perfil.sql`: un trigger que revierte `rol` y
+`usuario` a su valor anterior salvo que quien edite sea instructor o una conexión
+de servidor sin JWT. Verificado después del arreglo:
+
+| Intento de mcolon | Resultado |
+|---|---|
+| Leer todos los diagnósticos | `[]` |
+| Leer el diagnóstico de lrivera por id exacto | `[]` |
+| Editar el diagnóstico de lrivera | `[]`, sin cambios |
+| Crear un diagnóstico a nombre de lrivera | error 42501, RLS |
+| Ascenderse a instructor | rol sigue en `estudiante` |
+| Robar el usuario de otro | usuario sigue en `mcolon` |
+| Leer el código de clase | `[]` |
+| Cambiar su propio nombre | funciona, como debe |
