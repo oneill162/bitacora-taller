@@ -12,3 +12,6 @@ node_modules/
 vault/02-Equipos/
 vault/03-Estudiantes/
 vault/04-Diagnosticos/
+
+# Perfil temporal de Chromium que crean las pruebas
+pruebas/.perfil-chromium/
