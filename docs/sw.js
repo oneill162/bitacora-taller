@@ -7,15 +7,16 @@
 // Al publicar cambios, sube VERSION. Es lo que hace que los teléfonos
 // suelten la copia vieja: el cache lleva la versión en el nombre y al
 // activarse el worker nuevo borra los demás.
-const VERSION = "v2";
+const VERSION = "v3";
 const CACHE = `bitacora-${VERSION}`;
 
 // Lo que se baja de una al instalar: la app entera, supabase-js incluido.
 // Solo las fuentes se guardan la primera vez que se piden.
 const CASCO = [
   "./", "./index.html", "./app.js", "./local.js", "./config.js",
-  "./protocolo.js", "./taller.js", "./estilo.css", "./manifest.json",
-  "./vendor/supabase.js", "./icono-192.png", "./icono-512.png"
+  "./protocolo.js", "./taller.js", "./informes.js", "./estilo.css", "./manifest.json",
+  "./vendor/supabase.js", "./vendor/qr.js",
+  "./icono-192.png", "./icono-512.png"
 ];
 
 // Lo único que queda fuera son las fuentes, y son adorno: estilo.css declara

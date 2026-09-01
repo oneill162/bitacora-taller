@@ -2,6 +2,7 @@ import { SUPABASE_URL, SUPABASE_ANON, DOMINIO_LOGIN, NOMBRE_TALLER } from "./con
 import { GRUPOS, PUNTOS, ESTADOS, VEREDICTOS, resumir } from "./protocolo.js";
 import * as local from "./local.js";
 import { avance, haceCuanto, filasTaller as armarFilas, resumenTaller as armarResumen } from "./taller.js";
+import * as inf from "./informes.js";
 
 // supabase-js lo carga index.html desde docs/vendor/, no desde un CDN: en un
 // taller sin señal no se puede depender de que se baje una librería.
@@ -18,11 +19,14 @@ const estado = {
   puntos: {},       // { clave: {estado, nota} }
   equipo: null,     // equipo enlazado
   lista: [],
-  todo: [],         // lo de todo el taller, solo para el instructor
   autor: null,      // de quién es la hoja abierta; el instructor lee las ajenas
   ajena: false,     // la hoja abierta no es mía: se mira, no se toca
   taller: null,     // tablero del día: { fecha, grupo, estudiantes, hojas }
   pestana: "hoy",   // qué mira el instructor: hoy | todo
+  codigoClase: "",  // el código de registro vigente, solo lo lee el instructor
+  qrConCodigo: true,
+  datos: null,      // todo lo del taller para informes: { estudiantes, equipos, diagnosticos }
+  informe: "estudiante",
   latido: null,     // refresco automático del tablero
   pendiente: null,  // timeout de autoguardado
   enLinea: true,    // navigator.onLine, para pintarlo en la barra
@@ -176,7 +180,7 @@ async function iniciar(){
     if(evt === "SIGNED_OUT"){
       clearInterval(estado.latido); estado.latido = null;
       estado.perfil = null; estado.lista = []; estado.porSubir = 0;
-      estado.todo = []; estado.taller = null; estado.ajena = false; estado.autor = null;
+      estado.datos = null; estado.taller = null; estado.ajena = false; estado.autor = null;
       estado.vista = "acceso"; pintar();
     }
   });
@@ -247,7 +251,10 @@ function vistaAcceso(){
 }
 
 function montarAcceso(){
-  let modo = "entrar";
+  // El QR trae el código en el enlace: si viene, se abre directo en "Crear
+  // cuenta" con el campo lleno. El estudiante escanea y solo pone su nombre.
+  const codigoDelEnlace = new URLSearchParams(location.search).get("codigo") || "";
+  let modo = codigoDelEnlace ? "crear" : "entrar";
   const set = m => {
     modo = m;
     $("#m-entrar").setAttribute("aria-pressed", m === "entrar");
@@ -259,6 +266,11 @@ function montarAcceso(){
   };
   $("#m-entrar").onclick = () => set("entrar");
   $("#m-crear").onclick  = () => set("crear");
+  if(codigoDelEnlace){
+    set("crear");
+    $("#a-codigo").value = codigoDelEnlace;
+    aviso("Escanearon el código de la clase. Llena tus datos para crear tu cuenta.", "exito");
+  }
 
   $("#f-acceso").onsubmit = async ev => {
     ev.preventDefault();
@@ -320,7 +332,7 @@ async function cargarLista(){
   if(conectado()){
     const { data, error } = await conCorte(sb
       .from("diagnosticos")
-      .select("id, orden, fecha, creado_en, estado, veredicto, conteo, equipos(serial, marca, modelo)")
+      .select("id, orden, fecha, creado_en, estado, veredicto, conteo, sistema, hallazgos, equipos(serial, marca, modelo)")
       .order("fecha", { ascending:false })
       .order("creado_en", { ascending:false })
       .limit(200));
@@ -347,6 +359,8 @@ function vistaPanel(){
       <span class="pill${d.estado === "borrador" ? " borrador" : ""}" data-v="${esc(d.estado === "borrador" ? "" : d.veredicto)}">
         ${d.estado === "borrador" ? "Borrador" : esc(VEREDICTOS[d.veredicto] || "—")}
       </span>
+      ${d.estado === "entregado" && loQueFalta(d).length
+        ? '<span class="pill falta-pill" title="Entregada sin culminar">Falta</span>' : ""}
     </button>`;
   }).join("");
 
@@ -358,6 +372,7 @@ function vistaPanel(){
         <p>${estado.lista.length} ${estado.lista.length === 1 ? "hoja" : "hojas"} en la bitácora</p>
       </div>
       <div class="fila">
+        ${p.rol === "instructor" ? '<button class="btn ghost" id="b-codigo">Código para entrar</button>' : ""}
         ${p.rol === "instructor" ? '<button class="btn ghost" id="b-instructor">Ver todo el grupo</button>' : ""}
         <button class="btn" id="b-nuevo">Nuevo diagnóstico</button>
       </div>
@@ -394,6 +409,11 @@ function montarPanel(){
   };
   $("#b-nuevo")?.addEventListener("click", nuevo);
   $("#b-nuevo-2")?.addEventListener("click", nuevo);
+  $("#b-codigo")?.addEventListener("click", async () => {
+    estado.vista = "codigo"; pintar();
+    await cargarCodigoClase();
+    if(estado.codigoClase){ estado.vista = "codigo"; pintar(); }
+  });
   $("#b-instructor")?.addEventListener("click", async () => {
     estado.pestana = "hoy";
     if(!estado.taller) estado.taller = { fecha: hoy(), grupo: "", estudiantes: [], hojas: [] };
@@ -683,6 +703,12 @@ function vistaReporte(){
     </div>
     ${estado.ajena ? `<p class="ajena no-print">Hoja de ${esc(val(p.nombre, p.usuario))}. Solo lectura.</p>` : ""}
     <div id="aviso" hidden></div>
+    ${(() => {
+      const falta = inf.faltantes(d, eq, PUNTOS.length);
+      return falta.length ? `<div class="falta">
+        <b>Falta culminar esta hoja.</b>
+        <span>Queda por poner: ${esc(falta.join(", "))}.</span></div>` : "";
+    })()}
     <div class="hoja">
       <div class="hoja-h">
         <div><h1>Diagnóstico diario de equipo</h1>
@@ -734,6 +760,517 @@ function montarReporte(){
   });
 }
 
+// Qué le falta a una hoja para estar culminada. No bloquea nada —eso se
+// decidió así— pero se dice en los tres sitios donde alguien puede hacer algo
+// al respecto: la hoja del estudiante, su panel y el tablero del docente.
+const loQueFalta = h => inf.faltantes(h, h?.equipos, PUNTOS.length);
+
+/* ================= informes, inventario y duplicados ================= */
+// Una sola bajada para las tres pestañas: son las mismas tablas cruzadas de
+// distintas maneras, y pedirlas por separado tres veces no ayuda a nadie.
+async function cargarDatos(){
+  if(!conectado()){
+    aviso("Los informes necesitan conexión: el trabajo de los demás no se guarda en tu equipo.");
+    return false;
+  }
+  const [{ data: gente, error: e1 }, { data: eqs, error: e2 }, { data: hojas, error: e3 }] =
+    await Promise.all([
+      conCorte(sb.from("perfiles").select("id, usuario, nombre, grupo, escuela, rol")),
+      conCorte(sb.from("equipos").select("*")),
+      conCorte(sb.from("diagnosticos")
+        .select("id, autor_id, equipo_id, orden, fecha, estado, veredicto, conteo, sistema, hallazgos, actualizado_en")
+        .order("fecha", { ascending:false }).limit(2000))
+    ]);
+  const err = e1 || e2 || e3;
+  if(err){ if(esDeRed(err)) hayServidor = false; aviso(explicar(err)); return false; }
+
+  const estudiantes = (gente || []).filter(p => p.rol === "estudiante");
+  estado.datos = {
+    estudiantes, equipos: eqs || [], diagnosticos: hojas || [],
+    porId: Object.fromEntries((gente || []).map(p => [p.id, p])),
+    eqPorId: Object.fromEntries((eqs || []).map(e => [e.id, e]))
+  };
+  aviso("");
+  return true;
+}
+
+/* ---------- la gráfica de trabajo acumulado ---------- */
+// Barras horizontales porque los nombres son largos, ordenadas de más a menos
+// para que el que hay que buscar quede abajo del todo y salte a la vista.
+//
+// Dos series y no una: seis hojas todas sin entregar no es lo mismo que seis
+// entregadas, y es justo la diferencia que decide si hay que sentarse a
+// hablar con alguien. Los colores están validados para daltonismo y para los
+// dos temas; el aqua no llega a 3:1 sobre el fondo claro, así que la cifra va
+// escrita al final de cada barra y la tabla de abajo repite todos los valores.
+function graficaTrabajo(filas){
+  const conAlgo = filas.filter(f => f.hojas > 0);
+  if(!conAlgo.length) return `<p class="vacio-chico">Todavía no hay trabajo que graficar.</p>`;
+  const tope = Math.max(...filas.map(f => f.hojas));
+
+  const barras = filas.map(f => {
+    const pct = n => tope ? (n / tope) * 100 : 0;
+    const t = `${f.nombre}: ${f.entregadas} entregada${f.entregadas === 1 ? "" : "s"}, ` +
+              `${f.borradores} sin entregar`;
+    return `
+    <div class="g-fila"${f.hojas === 0 ? ' data-cero="1"' : ""}>
+      <span class="g-nombre" title="${esc(f.nombre)}">${esc(f.nombre)}</span>
+      <span class="g-barra">
+        ${f.entregadas ? `<i class="s1" style="width:${pct(f.entregadas)}%" title="${esc(t)}"></i>` : ""}
+        ${f.borradores ? `<i class="s2" style="width:${pct(f.borradores)}%" title="${esc(t)}"></i>` : ""}
+      </span>
+      <span class="g-valor">${f.hojas || "—"}</span>
+    </div>`;
+  }).join("");
+
+  return `
+  <figure class="grafica">
+    <figcaption>
+      <b>Trabajo acumulado por estudiante</b>
+      <span>Hojas de diagnóstico. Ordenadas de más a menos.</span>
+    </figcaption>
+    <div class="leyenda">
+      <span><i class="s1"></i>Entregadas</span>
+      <span><i class="s2"></i>Sin entregar</span>
+    </div>
+    <div class="g-cuerpo">${barras}</div>
+  </figure>`;
+}
+
+/* ---------- tablas de cada informe ---------- */
+const tabla = (encabezados, filas) => `
+  <div class="tabla-envoltura">
+    <table class="datos">
+      <thead><tr>${encabezados.map(h => `<th>${esc(h)}</th>`).join("")}</tr></thead>
+      <tbody>${filas}</tbody>
+    </table>
+  </div>`;
+
+function informePorEstudiante(){
+  const d = estado.datos;
+  const filas = inf.porEstudiante(d.estudiantes, d.diagnosticos, PUNTOS.length, d.eqPorId);
+  const cuerpo = filas.map(f => `<tr>
+    <td>${esc(f.nombre)}<small class="sub-td">${esc(f.usuario)}</small></td>
+    <td>${esc(f.grupo || "—")}</td>
+    <td class="num">${f.hojas}</td>
+    <td class="num">${f.entregadas}</td>
+    <td class="num">${f.borradores}</td>
+    <td class="num">${f.puntos}</td>
+    <td class="num">${f.fallas}</td>
+    <td class="num">${f.incompletas ? `<span class="pill" data-v="obs">${f.incompletas}</span>` : "—"}</td>
+    <td class="num">${esc(f.ultima || "—")}</td>
+  </tr>`).join("");
+  return graficaTrabajo(filas) +
+    tabla(["Estudiante","Grupo","Hojas","Entregadas","Sin entregar","Puntos evaluados",
+           "Fallas halladas","Sin culminar","Última"], cuerpo);
+}
+
+function informePorGrupo(){
+  const d = estado.datos;
+  const filas = inf.porGrupo(d.estudiantes, d.diagnosticos, PUNTOS.length);
+  const cuerpo = filas.map(f => `<tr>
+    <td>${esc(f.grupo)}</td>
+    <td class="num">${f.activos} de ${f.estudiantes}</td>
+    <td class="num">${f.hojas}</td>
+    <td class="num">${f.entregadas}</td>
+    <td class="num">${f.puntos}</td>
+    <td class="num">${f.fallas}</td>
+    <td class="num">${f.noAptos}</td>
+    <td class="num">${esc(f.ultima || "—")}</td>
+  </tr>`).join("");
+  return tabla(["Grupo","Han trabajado","Hojas","Entregadas","Puntos evaluados",
+                "Fallas","Equipos no aptos","Última"], cuerpo);
+}
+
+function informePorSalon(){
+  const d = estado.datos;
+  const filas = inf.porSalon(d.equipos, d.diagnosticos, PUNTOS.length);
+  if(!filas.length) return `<p class="vacio-chico">Todavía no hay equipos registrados.</p>`;
+  const cuerpo = filas.map(f => `<tr>
+    <td>${esc(f.salon)}</td>
+    <td class="num">${f.equipos}</td>
+    <td class="num">${f.diagnosticados}</td>
+    <td class="num">${f.equiposAptos ? `<span class="pill" data-v="apto">${f.equiposAptos}</span>` : "—"}</td>
+    <td class="num">${f.equiposConObs ? `<span class="pill" data-v="obs">${f.equiposConObs}</span>` : "—"}</td>
+    <td class="num">${f.equiposNoAptos ? `<span class="pill" data-v="no">${f.equiposNoAptos}</span>` : "—"}</td>
+    <td class="num">${f.equiposSinVeredicto || "—"}</td>
+    <td class="num">${esc(f.ultima || "—")}</td>
+  </tr>`).join("");
+  return `<p class="pista">El veredicto es el de la última revisión entregada de cada equipo.</p>` +
+    tabla(["Salón","Equipos","Revisados","Aptos","Con obs.","No aptos","Sin veredicto","Última"], cuerpo);
+}
+
+/* ---------- inventario ---------- */
+function vistaInventario(){
+  const d = estado.datos;
+  if(!d) return `<p class="vacio-chico">Cargando…</p>`;
+  const filas = inf.inventario(d.equipos, d.diagnosticos, d.porId);
+  if(!filas.length) return `<p class="vacio-chico">El inventario se llena solo: cada serial
+    que un estudiante escribe en una hoja entra aquí. Todavía no hay ninguno.</p>`;
+  const cuerpo = filas.map(f => `<tr>
+    <td class="num">${esc(f.serial)}</td>
+    <td>${esc(`${f.marca} ${f.modelo}`.trim() || "—")}<small class="sub-td">${esc(f.tipo)}</small></td>
+    <td class="num">${esc(f.inventario || "—")}</td>
+    <td>${esc(f.ubicacion)}</td>
+    <td class="num">${f.revisiones}</td>
+    <td><span class="pill" data-v="${esc(f.ultimoVeredicto)}">${
+      esc(VEREDICTOS[f.ultimoVeredicto] || "Sin entregar")}</span></td>
+    <td class="num">${esc(f.ultimaFecha || "—")}</td>
+    <td>${esc(f.ultimoTecnico || "—")}</td>
+  </tr>`).join("");
+  return `
+    <div class="filtros no-print">
+      <p class="pista">${filas.length} equipos, acumulados de lo que los estudiantes han escrito.</p>
+      <button class="btn ghost chico" id="b-csv">Descargar CSV</button>
+    </div>` +
+    tabla(["Serial","Equipo","Inventario","Salón","Revisiones","Último veredicto","Fecha","Técnico"], cuerpo);
+}
+
+function csvInventario(){
+  const d = estado.datos;
+  const filas = inf.inventario(d.equipos, d.diagnosticos, d.porId);
+  const cab = ["serial","marca","modelo","tipo","inventario","ubicacion",
+               "revisiones","ultimo_veredicto","ultima_fecha","ultimo_tecnico"];
+  // comillas dobles escapadas: un modelo con coma no puede partir la columna
+  const cel = v => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const cuerpo = filas.map(f => [f.serial, f.marca, f.modelo, f.tipo, f.inventario, f.ubicacion,
+    f.revisiones, VEREDICTOS[f.ultimoVeredicto] || "", f.ultimaFecha || "", f.ultimoTecnico]
+    .map(cel).join(",")).join("\n");
+  // BOM para que Excel abra los acentos bien
+  return "\uFEFF" + cab.join(",") + "\n" + cuerpo;
+}
+
+// Cada pestaña se pinta sola dentro de su caja, sin repintar la vista entera:
+// así no se pierde el sitio ni se cierra el teclado del filtro.
+function pintarPestana(p){
+  const caja = $(p === "informes" ? "#cuerpo-informe" : "#cuerpo-" + p);
+  if(!caja || !estado.datos) return;
+  if(p === "informes"){
+    caja.innerHTML =
+      estado.informe === "estudiante" ? informePorEstudiante() :
+      estado.informe === "grupo"      ? informePorGrupo() :
+      estado.informe === "salon"      ? informePorSalon() : vistaTablaTaller();
+    if(estado.informe === "todo") montarTablaTaller();
+  } else if(p === "inventario"){
+    caja.innerHTML = vistaInventario();
+    const b = $("#b-csv");
+    if(b) b.onclick = () => descargar("inventario-taller.csv", csvInventario(), "text/csv");
+  } else if(p === "revisar"){
+    caja.innerHTML = vistaRevisar();
+    enlazarAjenas(caja);
+    caja.querySelectorAll("[data-unir-eq]").forEach(b =>
+      b.onclick = () => unirEquipos(b.dataset.unirEq));
+    caja.querySelectorAll("[data-unir-gente]").forEach(b =>
+      b.onclick = () => unirEstudiantes(b.dataset.unirGente));
+  }
+}
+
+function descargar(nombre, texto, tipo){
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([texto], { type: tipo + ";charset=utf-8" }));
+  a.download = nombre;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+
+/* ---------- revisar: duplicados y hojas sin culminar ---------- */
+function vistaRevisar(){
+  const d = estado.datos;
+  if(!d) return `<p class="vacio-chico">Cargando…</p>`;
+  const dup = inf.duplicados(d.equipos, d.diagnosticos, d.estudiantes, d.porId);
+  const incompletas = d.diagnosticos
+    .filter(x => x.estado === "entregado")
+    .map(x => ({ hoja: x, falta: inf.faltantes(x, d.eqPorId[x.equipo_id], PUNTOS.length) }))
+    .filter(x => x.falta.length);
+
+  const nada = `<p class="vacio-chico">Nada que revisar por aquí.</p>`;
+
+  const secSerial = dup.serial.length ? dup.serial.map(g => {
+    const gana = inf.elegirSuperviviente(g.equipos, g.revisiones);
+    return `
+    <div class="dup">
+      <div class="dup-cab">
+        <b>Una misma máquina, ${g.equipos.length} veces</b>
+        <span class="pista">Los seriales solo se diferencian en mayúsculas, guiones o espacios.</span>
+      </div>
+      <ul class="dup-lista">${g.equipos.map((eq, i) => `
+        <li${i === gana ? ' class="gana"' : ""}>
+          <code>${esc(eq.serial)}</code>
+          <span>${esc(`${eq.marca || ""} ${eq.modelo || ""}`.trim() || "sin marca")} ·
+            ${esc(eq.ubicacion || "sin salón")}</span>
+          <span class="num">${g.revisiones[i]} ${g.revisiones[i] === 1 ? "revisión" : "revisiones"}</span>
+          ${i === gana ? '<span class="pill" data-v="apto">se queda</span>' : ""}
+        </li>`).join("")}</ul>
+      <button class="btn ghost chico" data-unir-eq="${esc(g.clave)}">
+        Unificar en <code>${esc(g.equipos[gana].serial)}</code></button>
+    </div>`;
+  }).join("") : nada;
+
+  const secInv = dup.inventario.length ? dup.inventario.map(g => `
+    <div class="dup">
+      <div class="dup-cab">
+        <b>Número de inventario repetido: <code>${esc(g.equipos[0].inventario)}</code></b>
+        <span class="pista">Son máquinas distintas con el mismo número. Suele ser un error
+          de tecleo: corrígelo en la hoja del equipo que esté mal.</span>
+      </div>
+      <ul class="dup-lista">${g.equipos.map(eq => `
+        <li><code>${esc(eq.serial)}</code>
+          <span>${esc(`${eq.marca || ""} ${eq.modelo || ""}`.trim() || "sin marca")} ·
+            ${esc(eq.ubicacion || "sin salón")}</span></li>`).join("")}</ul>
+    </div>`).join("") : nada;
+
+  const secHojas = dup.hojas.length ? dup.hojas.map(g => {
+    const eq = estado.datos.eqPorId[g.equipo_id];
+    return `
+    <div class="dup">
+      <div class="dup-cab">
+        <b>${esc(eq?.serial || "Un equipo")} revisado ${g.hojas.length} veces el ${esc(g.fecha)}</b>
+        <span class="pista">${g.autores.length > 1
+          ? "Lo trabajaron " + esc(g.autores.join(" y ")) + " sin saber el uno del otro."
+          : "La misma persona abrió dos hojas del mismo equipo."}</span>
+      </div>
+      <ul class="dup-lista">${g.hojas.map(h => `
+        <li><code>${esc(val(h.orden, "sin orden"))}</code>
+          <span>${esc(estado.datos.porId[h.autor_id]?.nombre || "?")}</span>
+          <span class="pill" data-v="${esc(h.estado === "borrador" ? "" : h.veredicto)}">${
+            h.estado === "borrador" ? "Borrador" : esc(VEREDICTOS[h.veredicto] || "—")}</span>
+          <button class="btn ghost chico" data-ajena="${esc(h.id)}">Ver</button></li>`).join("")}</ul>
+    </div>`;
+  }).join("") : nada;
+
+  const secGente = dup.estudiantes.length ? dup.estudiantes.map(g => {
+    const gana = g.hojas.indexOf(Math.max(...g.hojas));
+    return `
+    <div class="dup">
+      <div class="dup-cab">
+        <b>${esc(g.estudiantes[0].nombre)} tiene ${g.estudiantes.length} cuentas</b>
+        <span class="pista">Al unificar, el trabajo pasa todo a la cuenta que se queda.
+          La otra queda vacía y la borras desde el panel de Supabase.</span>
+      </div>
+      <ul class="dup-lista">${g.estudiantes.map((e, i) => `
+        <li${i === gana ? ' class="gana"' : ""}>
+          <code>${esc(e.usuario)}</code>
+          <span>${esc(e.grupo || "sin grupo")}</span>
+          <span class="num">${g.hojas[i]} ${g.hojas[i] === 1 ? "hoja" : "hojas"}</span>
+          ${i === gana ? '<span class="pill" data-v="apto">se queda</span>' : ""}</li>`).join("")}</ul>
+      ${g.hojas.filter((_, i) => i !== gana).some(n => n > 0)
+        ? `<button class="btn ghost chico" data-unir-gente="${esc(g.clave)}">
+            Pasar todo a <code>${esc(g.estudiantes[gana].usuario)}</code></button>`
+        : `<p class="pista">El trabajo ya está todo en una cuenta. Las demás siguen
+            existiendo vacías: bórralas en Authentication → Users del panel de Supabase.</p>`}
+    </div>`;
+  }).join("") : nada;
+
+  const secFalta = incompletas.length ? `
+    <p class="pista">Entregadas pero sin culminar. No se bloquea nada: es para que decidas.</p>` +
+    tabla(["Hoja","Estudiante","Fecha","Qué le falta",""], incompletas.map(x => `<tr>
+      <td class="num">${esc(val(x.hoja.orden, "—"))}</td>
+      <td>${esc(estado.datos.porId[x.hoja.autor_id]?.nombre || "?")}</td>
+      <td class="num">${esc(x.hoja.fecha)}</td>
+      <td>${esc(x.falta.join(", "))}</td>
+      <td><button class="btn ghost chico" data-ajena="${esc(x.hoja.id)}">Ver</button></td>
+    </tr>`).join("")) : nada;
+
+  const n = inf.hayDuplicados(dup) + incompletas.length;
+  return `
+    <p class="pista no-print">${n
+      ? `${n} ${n === 1 ? "cosa" : "cosas"} por revisar.`
+      : "Nada pendiente: sin duplicados y sin hojas a medias."}</p>
+    <h2 class="rev-t">Hojas entregadas sin culminar</h2>${secFalta}
+    <h2 class="rev-t">La misma máquina con el serial escrito distinto</h2>${secSerial}
+    <h2 class="rev-t">El mismo equipo revisado dos veces el mismo día</h2>${secHojas}
+    <h2 class="rev-t">Números de inventario repetidos</h2>${secInv}
+    <h2 class="rev-t">Estudiantes con más de una cuenta</h2>${secGente}`;
+}
+
+/* ---------- unificar ---------- */
+// Unificar borra filas, así que nunca pasa sola: se pregunta, se hace y se
+// vuelve a bajar todo para que lo que se enseñe sea lo que hay de verdad.
+async function unirEquipos(clave){
+  const d = estado.datos;
+  const grupo = inf.duplicados(d.equipos, d.diagnosticos, d.estudiantes, d.porId)
+    .serial.find(g => g.clave === clave);
+  if(!grupo) return;
+  const i = inf.elegirSuperviviente(grupo.equipos, grupo.revisiones);
+  const gana = grupo.equipos[i];
+  const pierden = grupo.equipos.filter((_, j) => j !== i);
+  const total = grupo.revisiones.reduce((a, b) => a + b, 0) - grupo.revisiones[i];
+
+  if(!confirm(`Se queda "${gana.serial}" y desaparecen ${pierden.map(e => `"${e.serial}"`).join(", ")}.\n` +
+              `${total} ${total === 1 ? "hoja pasa" : "hojas pasan"} al equipo que se queda. ` +
+              `Esto no se puede deshacer. ¿Seguir?`)) return;
+
+  // primero se mueven las hojas y después se borran los equipos: al revés,
+  // la clave foránea las dejaría sueltas sin equipo
+  for(const eq of pierden){
+    const { error } = await conCorte(
+      sb.from("diagnosticos").update({ equipo_id: gana.id }).eq("equipo_id", eq.id));
+    if(error){ aviso(explicar(error)); return; }
+  }
+  const { error } = await conCorte(
+    sb.from("equipos").delete().in("id", pierden.map(e => e.id)));
+  if(error){ aviso(explicar(error)); return; }
+  await recargarInstructor(`Unificado en ${gana.serial}.`);
+}
+
+async function unirEstudiantes(clave){
+  const d = estado.datos;
+  const grupo = inf.duplicados(d.equipos, d.diagnosticos, d.estudiantes, d.porId)
+    .estudiantes.find(g => g.clave === clave);
+  if(!grupo) return;
+  const i = grupo.hojas.indexOf(Math.max(...grupo.hojas));
+  const gana = grupo.estudiantes[i];
+  const pierden = grupo.estudiantes.filter((_, j) => j !== i);
+  const total = grupo.hojas.reduce((a, b) => a + b, 0) - grupo.hojas[i];
+
+  if(!confirm(`El trabajo de ${pierden.map(e => `"${e.usuario}"`).join(", ")} pasa a "${gana.usuario}".\n` +
+              `Son ${total} ${total === 1 ? "hoja" : "hojas"}. La cuenta vacía hay que borrarla ` +
+              `desde el panel de Supabase. ¿Seguir?`)) return;
+
+  for(const e of pierden){
+    const { error } = await conCorte(
+      sb.from("diagnosticos").update({ autor_id: gana.id }).eq("autor_id", e.id));
+    if(error){ aviso(explicar(error)); return; }
+  }
+  await recargarInstructor(
+    `Trabajo pasado a ${gana.usuario}. Borra ${pierden.map(e => e.usuario).join(", ")} ` +
+    `desde Authentication → Users en Supabase.`);
+}
+
+async function recargarInstructor(mensaje){
+  await cargarDatos();
+  pintar();
+  if(mensaje) aviso(mensaje, "exito");
+}
+
+/* ================= código de entrada (instructor) ================= */
+// El QR se dibuja en el navegador y no se guarda como imagen en el repo:
+// así siempre lleva la dirección real desde donde se abrió la app y el código
+// de clase que esté puesto hoy. Cambiar el código cada semestre no obliga a
+// regenerar ningún archivo.
+//
+// La librería se carga solo cuando hace falta: son 20 KB que un estudiante
+// nunca necesita. El service worker la tiene guardada, así que entra al
+// momento y también sin señal.
+let qrCargado = null;
+function cargarQR(){
+  if(window.qrcode) return Promise.resolve(window.qrcode);
+  if(qrCargado) return qrCargado;
+  qrCargado = new Promise((ok, mal) => {
+    const et = document.createElement("script");
+    et.src = "./vendor/qr.js";
+    et.onload = () => ok(window.qrcode);
+    et.onerror = () => { qrCargado = null; mal(new Error("No se pudo cargar el generador de QR.")); };
+    document.head.appendChild(et);
+  });
+  return qrCargado;
+}
+
+// La dirección de la app tal como el navegador la tiene abierta, sin el
+// index.html ni parámetros: es la que hay que repartir.
+function direccionApp(){
+  const u = new URL(location.href);
+  u.search = ""; u.hash = "";
+  u.pathname = u.pathname.replace(/index\.html$/, "");
+  return u.toString();
+}
+
+function enlaceEntrada(){
+  const base = direccionApp();
+  const cod = estado.codigoClase;
+  return (estado.qrConCodigo && cod) ? `${base}?codigo=${encodeURIComponent(cod)}` : base;
+}
+
+async function cargarCodigoClase(){
+  if(!conectado()) return;
+  const { data, error } = await conCorte(
+    sb.from("ajustes").select("valor").eq("clave", "codigo_registro").maybeSingle());
+  if(!error && data) estado.codigoClase = data.valor;
+}
+
+function vistaCodigo(){
+  return `
+  <div class="pila">
+    <div class="enc no-print">
+      <div><h1>Código para entrar</h1>
+        <p>Pégalo en la plataforma de los estudiantes o proyéctalo en clase.</p></div>
+      <button class="btn ghost" id="b-volver">Volver</button>
+    </div>
+    <div id="aviso" hidden></div>
+
+    <div class="cartel">
+      <h2>Bitácora de Diagnóstico</h2>
+      <p class="cartel-sub">${esc(NOMBRE_TALLER)}</p>
+      <div class="qr" id="qr">Generando…</div>
+      <p class="cartel-url" id="qr-url">${esc(enlaceEntrada())}</p>
+      ${estado.codigoClase ? `<p class="cartel-cod">Código de clase: <b>${esc(estado.codigoClase)}</b></p>` : ""}
+      <p class="cartel-pie">Escanea con la cámara del teléfono. Crea tu cuenta una sola vez;
+        después entras con tu usuario y contraseña.</p>
+    </div>
+
+    <div class="filtros no-print">
+      <label class="f fila-check">
+        <input type="checkbox" id="qr-cod"${estado.qrConCodigo ? " checked" : ""}>
+        <span>Incluir el código de clase en el enlace</span>
+      </label>
+      <button class="btn ghost chico" id="b-png">Descargar imagen</button>
+      <button class="btn ghost chico" id="b-imprimir">Imprimir el cartel</button>
+    </div>
+    <p class="pista no-print">Con el código incluido, el estudiante no tiene que escribirlo:
+      el QR se lo llena solo. Quítalo si vas a publicar el enlace en un sitio abierto.</p>
+  </div>`;
+}
+
+async function pintarQR(){
+  const caja = $("#qr");
+  if(!caja) return;
+  try{
+    const qrcode = await cargarQR();
+    // nivel M de corrección y tipo automático: aguanta que el cartel se
+    // imprima regular o se escanee de una pantalla proyectada
+    const q = qrcode(0, "M");
+    q.addData(enlaceEntrada());
+    q.make();
+    caja.innerHTML = q.createSvgTag({ cellSize: 8, margin: 8, scalable: true });
+    const url = $("#qr-url");
+    if(url) url.textContent = enlaceEntrada();
+  } catch(err){ caja.textContent = "No se pudo generar el QR."; aviso(explicar(err)); }
+}
+
+function montarCodigo(){
+  $("#b-volver").onclick = () => { estado.vista = "panel"; pintar(); };
+  $("#b-imprimir").onclick = () => window.print();
+  $("#qr-cod").addEventListener("change", ev => {
+    estado.qrConCodigo = ev.target.checked;
+    pintarQR();
+  });
+  // El SVG se pasa por un lienzo para bajarlo como PNG: es lo que aceptan
+  // las plataformas escolares, que no siempre dejan subir SVG.
+  $("#b-png").onclick = async () => {
+    const svg = $("#qr svg");
+    if(!svg){ aviso("Todavía no hay QR que descargar."); return; }
+    const lado = 1024;
+    const blob = new Blob([new XMLSerializer().serializeToString(svg)], { type:"image/svg+xml" });
+    const src = URL.createObjectURL(blob);
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement("canvas");
+      c.width = c.height = lado;
+      const g = c.getContext("2d");
+      g.fillStyle = "#fff"; g.fillRect(0, 0, lado, lado);
+      g.drawImage(img, 0, 0, lado, lado);
+      URL.revokeObjectURL(src);
+      const a = document.createElement("a");
+      a.href = c.toDataURL("image/png");
+      a.download = "bitacora-taller-qr.png";
+      a.click();
+    };
+    img.onerror = () => { URL.revokeObjectURL(src); aviso("No se pudo convertir el QR a imagen."); };
+    img.src = src;
+  };
+  pintarQR();
+}
+
 /* ================= tablero del día (instructor) ================= */
 // La pregunta de la clase no es "qué se entregó" sino "quién no ha empezado",
 // y esa no se puede contestar con la tabla de diagnósticos: el que no hizo
@@ -750,7 +1287,7 @@ async function cargarTaller(){
   const [{ data: gente, error: e1 }, { data: hojas, error: e2 }] = await Promise.all([
     conCorte(sb.from("perfiles").select("id, usuario, nombre, grupo").eq("rol", "estudiante")),
     conCorte(sb.from("diagnosticos")
-      .select("id, autor_id, orden, estado, veredicto, conteo, actualizado_en, equipos(serial, marca, modelo)")
+      .select("id, autor_id, orden, estado, veredicto, conteo, sistema, hallazgos, actualizado_en, equipos(serial, marca, modelo)")
       .eq("fecha", t.fecha))
   ]);
   if(e1 || e2){
@@ -775,9 +1312,14 @@ function barraAvance(hechos, total){
 // Entregada: qué veredicto le salió. Sin entregar: cuándo la tocó por última
 // vez, que es lo que dice si el estudiante sigue trabajando o se atascó.
 function marcaHoja(h){
-  return h.estado === "entregado"
-    ? `<span class="pill" data-v="${esc(h.veredicto)}">${esc(VEREDICTOS[h.veredicto] || "Entregado")}</span>`
-    : `<span class="cuando">${esc(haceCuanto(h.actualizado_en))}</span>`;
+  if(h.estado !== "entregado")
+    return `<span class="cuando">${esc(haceCuanto(h.actualizado_en))}</span>`;
+  const falta = loQueFalta(h);
+  const pill = `<span class="pill" data-v="${esc(h.veredicto)}">${
+    esc(VEREDICTOS[h.veredicto] || "Entregado")}</span>`;
+  return falta.length
+    ? pill + `<span class="pill falta-pill" title="${esc("Falta: " + falta.join(", "))}">Falta</span>`
+    : pill;
 }
 
 function lineaHoja(h, sangrada){
@@ -874,17 +1416,19 @@ function pintarGrupos(){
 /* ================= vista de instructor ================= */
 // Lo único que no funciona sin señal: el trabajo de los demás nunca se
 // guarda en el equipo del instructor, porque no es suyo.
-async function cargarInstructor(){
-  if(!conectado()){
-    estado.todo = []; pintar();
-    aviso("Ver el taller completo necesita conexión. Tus hojas sí están aquí.");
-    return;
-  }
-  const { data, error } = await conCorte(sb.from("vista_diagnosticos")
-    .select("*").order("fecha", { ascending:false }).limit(500));
-  if(error){ estado.todo = []; pintar(); aviso(explicar(error)); return; }
-  estado.todo = data || [];
-  pintar();
+
+// Las hojas con el nombre de su autor y su equipo ya pegados, que es como se
+// leen en la tabla. Sale de estado.datos y no de una consulta aparte: son las
+// mismas filas que ya usan los informes.
+function hojasConTodo(){
+  const d = estado.datos;
+  if(!d) return [];
+  return d.diagnosticos.map(h => {
+    const a = d.porId[h.autor_id] || {}, e = d.eqPorId[h.equipo_id] || {};
+    return { ...h, autor_nombre: a.nombre || "", autor_usuario: a.usuario || "",
+             autor_grupo: a.grupo || "", equipo_serial: e.serial || "",
+             equipo_marca: e.marca || "", equipo_modelo: e.modelo || "" };
+  });
 }
 
 function filasInstructor(filas){
@@ -895,7 +1439,7 @@ function filasInstructor(filas){
       <td>${esc(f.autor_nombre || f.autor_usuario)}</td>
       <td>${esc(f.autor_grupo || "—")}</td>
       <td class="num">${esc(f.equipo_serial || "—")}</td>
-      <td>${esc(f.equipo_marca || "")} ${esc(f.equipo_modelo || "")}</td>
+      <td>${esc(`${f.equipo_marca} ${f.equipo_modelo}`.trim() || "—")}</td>
       <td><span class="pill" data-v="${esc(f.estado === "borrador" ? "" : f.veredicto)}">${
         f.estado === "borrador" ? "Borrador" : esc(VEREDICTOS[f.veredicto] || "—")}</span></td>
       <td class="num">${c.ok || 0}/${c.obs || 0}/${c.falla || 0}</td>
@@ -911,17 +1455,21 @@ function vistaInstructor(){
   return `
   <div class="pila">
     <div class="enc">
-      <div><h1>El taller ${esHoy ? "hoy" : "el " + fechaLarga(t.fecha)}</h1>
-        <p id="taller-resumen">${esc(resumenTaller())}</p></div>
+      <div><h1>El taller</h1>
+        <p>${esc(val(estado.perfil?.escuela, NOMBRE_TALLER))}</p></div>
       <button class="btn ghost" id="b-volver">Mis diagnósticos</button>
     </div>
-    <div class="conmuta no-print" role="group" aria-label="Qué mirar">
+    <div class="conmuta pestanas no-print" role="group" aria-label="Qué mirar">
       <button type="button" id="p-hoy" aria-pressed="true">El día</button>
-      <button type="button" id="p-todo" aria-pressed="false">Buscar en todo</button>
+      <button type="button" id="p-informes" aria-pressed="false">Informes</button>
+      <button type="button" id="p-inventario" aria-pressed="false">Inventario</button>
+      <button type="button" id="p-revisar" aria-pressed="false">Revisar</button>
     </div>
     <div id="aviso" hidden></div>
 
     <div id="panel-hoy">
+      <h2 class="dia-t">${esHoy ? "Hoy" : fechaLarga(t.fecha)}<span id="taller-resumen">${
+        esc(resumenTaller())}</span></h2>
       <div class="filtros no-print">
         <label class="f">Día<input type="date" id="ta-fecha" value="${esc(t.fecha)}"></label>
         <label class="f">Grupo<select id="ta-grupo"><option value="">Todos</option>${
@@ -932,16 +1480,25 @@ function vistaInstructor(){
       <div class="taller" id="taller-cuerpo">${filasTaller()}</div>
     </div>
 
-    <div id="panel-todo" hidden>
-      ${vistaTablaTaller()}
+    <div id="panel-informes" hidden>
+      <div class="conmuta chico no-print" role="group" aria-label="Qué informe">
+        ${[["estudiante","Por estudiante"],["grupo","Por grupo"],
+           ["salon","Por salón"],["todo","Todas las hojas"]]
+          .map(([k, t]) => `<button type="button" data-informe="${k}" aria-pressed="${
+            estado.informe === k}">${t}</button>`).join("")}
+      </div>
+      <div id="cuerpo-informe"></div>
     </div>
+
+    <div id="panel-inventario" hidden><div id="cuerpo-inventario"></div></div>
+    <div id="panel-revisar" hidden><div id="cuerpo-revisar"></div></div>
   </div>`;
 }
 
 // La tabla de siempre: sirve para buscar por serial o mirar otras fechas,
 // que es justo lo que el tablero del día no hace.
 function vistaTablaTaller(){
-  const filas = (estado.todo || []);
+  const filas = hojasConTodo();
   const grupos = [...new Set(filas.map(f => f.autor_grupo).filter(Boolean))].sort();
   const cuerpo = filasInstructor(filas);
 
@@ -973,18 +1530,27 @@ function montarInstructor(){
   };
 
   /* ---- pestañas ---- */
-  const verPestana = p => {
+  const PESTANAS = ["hoy","informes","inventario","revisar"];
+  const verPestana = async p => {
     estado.pestana = p;
-    $("#p-hoy").setAttribute("aria-pressed", p === "hoy");
-    $("#p-todo").setAttribute("aria-pressed", p === "todo");
-    $("#panel-hoy").hidden  = p !== "hoy";
-    $("#panel-todo").hidden = p !== "todo";
+    PESTANAS.forEach(x => {
+      $("#p-" + x)?.setAttribute("aria-pressed", String(x === p));
+      const panel = $("#panel-" + x);
+      if(panel) panel.hidden = x !== p;
+    });
     aviso("");
-    if(p === "todo" && !(estado.todo || []).length) cargarInstructor();
+    if(p !== "hoy"){
+      // los informes cruzan todo el taller: se baja una vez y sirve a las tres
+      if(!estado.datos){
+        const caja = $("#cuerpo-" + p);
+        if(caja) caja.innerHTML = `<p class="vacio-chico">Cargando…</p>`;
+        if(!(await cargarDatos())) return;
+      }
+      pintarPestana(p);
+    }
   };
-  $("#p-hoy").onclick  = () => verPestana("hoy");
-  $("#p-todo").onclick = () => verPestana("todo");
-  if(estado.pestana === "todo") verPestana("todo");
+  PESTANAS.forEach(x => { const b = $("#p-" + x); if(b) b.onclick = () => verPestana(x); });
+  if(estado.pestana !== "hoy") verPestana(estado.pestana);
 
   /* ---- el día ---- */
   $("#ta-fecha").addEventListener("change", () => {
@@ -1008,11 +1574,23 @@ function montarInstructor(){
 
   pintarTaller();
 
-  /* ---- buscar en todo ---- */
+  /* ---- informes ---- */
+  app.querySelectorAll("[data-informe]").forEach(b => b.onclick = () => {
+    estado.informe = b.dataset.informe;
+    app.querySelectorAll("[data-informe]").forEach(x =>
+      x.setAttribute("aria-pressed", String(x.dataset.informe === estado.informe)));
+    pintarPestana("informes");
+  });
+
+}
+
+// Los filtros de la tabla se enlazan cuando la tabla existe, que ahora es al
+// abrir su informe y no al montar la vista entera.
+function montarTablaTaller(){
   const filtrar = () => {
     const g = $("#fi-grupo").value, v = $("#fi-vered").value,
           e = $("#fi-estado").value, t = $("#fi-texto").value.toLowerCase();
-    const vis = (estado.todo || []).filter(f =>
+    const vis = hojasConTodo().filter(f =>
       (!g || f.autor_grupo === g) &&
       (!v || f.veredicto === v) &&
       (!e || f.estado === e) &&
@@ -1022,7 +1600,7 @@ function montarInstructor(){
     enlazarAjenas($("#tb"));
   };
   ["fi-grupo","fi-vered","fi-estado","fi-texto"].forEach(id =>
-    $("#" + id).addEventListener("input", filtrar));
+    $("#" + id)?.addEventListener("input", filtrar));
   enlazarAjenas($("#tb"));
 }
 
@@ -1055,11 +1633,11 @@ function barra(){
 
 function pintar(){
   const vistas = { acceso: vistaAcceso, panel: vistaPanel, editor: vistaEditor,
-                   reporte: vistaReporte, instructor: vistaInstructor };
+                   reporte: vistaReporte, instructor: vistaInstructor, codigo: vistaCodigo };
   app.innerHTML = barra() + "<main>" + vistas[estado.vista]() + "</main>";
   $("#b-salir")?.addEventListener("click", salir);
   ({ acceso: montarAcceso, panel: montarPanel, editor: montarEditor,
-     reporte: montarReporte, instructor: montarInstructor })[estado.vista]();
+     reporte: montarReporte, instructor: montarInstructor, codigo: montarCodigo })[estado.vista]();
   pintarConexion();
   window.scrollTo(0, 0);
 }
