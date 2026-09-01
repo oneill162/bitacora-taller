@@ -9,7 +9,7 @@ Tres piezas separadas, cada una haciendo lo que sabe hacer.
 
 Una página que abren del teléfono. Entran con **usuario y contraseña**, llenan la hoja de cotejo, y entregan. Cada estudiante ve solo lo suyo, y eso lo garantiza la base de datos, no la app.
 
-**Entran por un código QR.** En el panel del instructor, *Código para entrar* arma un cartel con el QR para pegar en la plataforma del curso o proyectarlo en clase. El enlace lleva dentro el código de clase, así que el estudiante escanea y le sale la pantalla de crear cuenta con el código ya puesto: solo pone su nombre, grupo y contraseña. Eso lo hace **una sola vez**; después entra con usuario y contraseña.
+**Entran por un código QR.** En el panel del instructor, *Código para entrar* arma un cartel con el QR para pegar en la plataforma del curso o proyectarlo en clase. El estudiante escanea y le sale la pantalla de crear cuenta; el **código de clase es `2108`** y lo escribe él, no viene puesto en el enlace. Está impreso en el cartel para que lo copie. Eso lo hace **una sola vez**; después entra con usuario y contraseña.
 
 **Funciona sin señal.** El taller no tiene wifi, así que la app no guarda en Supabase: guarda en el propio teléfono y de ahí sube cuando hay conexión. Escribir en el teléfono no depende de la red, de modo que guardar nunca falla. En la barra de arriba aparece lo que queda por subir; cuando vuelve la señal se sube solo. Un diagnóstico empezado entero sin internet sube completo después.
 

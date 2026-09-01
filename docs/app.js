@@ -24,7 +24,6 @@ const estado = {
   taller: null,     // tablero del día: { fecha, grupo, estudiantes, hojas }
   pestana: "hoy",   // qué mira el instructor: hoy | todo
   codigoClase: "",  // el código de registro vigente, solo lo lee el instructor
-  qrConCodigo: true,
   datos: null,      // todo lo del taller para informes: { estudiantes, equipos, diagnosticos }
   informe: "estudiante",
   latido: null,     // refresco automático del tablero
@@ -234,9 +233,9 @@ function vistaAcceso(){
       </label>
       <div id="extra" hidden class="campos">
         <label class="f">Código de clase
-          <input id="a-codigo" autocapitalize="characters" autocorrect="off" spellcheck="false"
+          <input id="a-codigo" inputmode="numeric" autocorrect="off" spellcheck="false"
                  placeholder="Te lo da el instructor">
-          <span class="pista">Solo hace falta al crear la cuenta, no para entrar.</span>
+          <span class="pista">Lo escribes tú. Solo hace falta al crear la cuenta, no para entrar.</span>
         </label>
         <label class="f">Nombre completo
           <input id="a-nombre" autocomplete="name" placeholder="Luis Rivera"></label>
@@ -251,25 +250,27 @@ function vistaAcceso(){
 }
 
 function montarAcceso(){
-  // El QR trae el código en el enlace: si viene, se abre directo en "Crear
-  // cuenta" con el campo lleno. El estudiante escanea y solo pone su nombre.
-  const codigoDelEnlace = new URLSearchParams(location.search).get("codigo") || "";
-  let modo = codigoDelEnlace ? "crear" : "entrar";
+  // El QR abre directo en "Crear cuenta", pero nunca trae el código: el
+  // estudiante lo teclea a mano, dictado o proyectado por el instructor.
+  const desdeQR = new URLSearchParams(location.search).has("nuevo");
+  let modo = desdeQR ? "crear" : "entrar";
   const set = m => {
     modo = m;
     $("#m-entrar").setAttribute("aria-pressed", m === "entrar");
     $("#m-crear").setAttribute("aria-pressed", m === "crear");
     $("#extra").hidden = m !== "crear";
+    // El navegador no puede enfocar un campo escondido, así que la obligación
+    // se pone y se quita con el modo, no en el HTML.
+    $("#a-codigo").required = m === "crear";
     $("#a-enviar").textContent = m === "crear" ? "Crear mi cuenta" : "Entrar";
     $("#a-clave").setAttribute("autocomplete", m === "crear" ? "new-password" : "current-password");
     aviso("");
   };
   $("#m-entrar").onclick = () => set("entrar");
   $("#m-crear").onclick  = () => set("crear");
-  if(codigoDelEnlace){
+  if(desdeQR){
     set("crear");
-    $("#a-codigo").value = codigoDelEnlace;
-    aviso("Escanearon el código de la clase. Llena tus datos para crear tu cuenta.", "exito");
+    aviso("Llena tus datos y escribe el código de clase para crear tu cuenta.", "exito");
   }
 
   $("#f-acceso").onsubmit = async ev => {
@@ -1144,10 +1145,10 @@ async function recargarInstructor(mensaje){
 }
 
 /* ================= código de entrada (instructor) ================= */
-// El QR se dibuja en el navegador y no se guarda como imagen en el repo:
-// así siempre lleva la dirección real desde donde se abrió la app y el código
-// de clase que esté puesto hoy. Cambiar el código cada semestre no obliga a
-// regenerar ningún archivo.
+// El QR se dibuja en el navegador y no se guarda como imagen en el repo: así
+// siempre lleva la dirección real desde donde se abrió la app. El código de
+// clase NO viaja en el enlace; va impreso en el cartel para que el estudiante
+// lo escriba. Un enlace que se cuele fuera del salón no abre cuentas solo.
 //
 // La librería se carga solo cuando hace falta: son 20 KB que un estudiante
 // nunca necesita. El service worker la tiene guardada, así que entra al
@@ -1176,9 +1177,7 @@ function direccionApp(){
 }
 
 function enlaceEntrada(){
-  const base = direccionApp();
-  const cod = estado.codigoClase;
-  return (estado.qrConCodigo && cod) ? `${base}?codigo=${encodeURIComponent(cod)}` : base;
+  return `${direccionApp()}?nuevo=1`;
 }
 
 async function cargarCodigoClase(){
@@ -1204,20 +1203,16 @@ function vistaCodigo(){
       <div class="qr" id="qr">Generando…</div>
       <p class="cartel-url" id="qr-url">${esc(enlaceEntrada())}</p>
       ${estado.codigoClase ? `<p class="cartel-cod">Código de clase: <b>${esc(estado.codigoClase)}</b></p>` : ""}
-      <p class="cartel-pie">Escanea con la cámara del teléfono. Crea tu cuenta una sola vez;
-        después entras con tu usuario y contraseña.</p>
+      <p class="cartel-pie">Escanea con la cámara del teléfono y escribe el código de arriba.
+        Crea tu cuenta una sola vez; después entras con tu usuario y contraseña.</p>
     </div>
 
     <div class="filtros no-print">
-      <label class="f fila-check">
-        <input type="checkbox" id="qr-cod"${estado.qrConCodigo ? " checked" : ""}>
-        <span>Incluir el código de clase en el enlace</span>
-      </label>
       <button class="btn ghost chico" id="b-png">Descargar imagen</button>
       <button class="btn ghost chico" id="b-imprimir">Imprimir el cartel</button>
     </div>
-    <p class="pista no-print">Con el código incluido, el estudiante no tiene que escribirlo:
-      el QR se lo llena solo. Quítalo si vas a publicar el enlace en un sitio abierto.</p>
+    <p class="pista no-print">El QR abre la app en <i>Crear cuenta</i>, pero el código no
+      viaja en el enlace: el estudiante lo escribe a mano. Proyéctalo o díctalo en clase.</p>
   </div>`;
 }
 
@@ -1240,10 +1235,6 @@ async function pintarQR(){
 function montarCodigo(){
   $("#b-volver").onclick = () => { estado.vista = "panel"; pintar(); };
   $("#b-imprimir").onclick = () => window.print();
-  $("#qr-cod").addEventListener("change", ev => {
-    estado.qrConCodigo = ev.target.checked;
-    pintarQR();
-  });
   // El SVG se pasa por un lienzo para bajarlo como PNG: es lo que aceptan
   // las plataformas escolares, que no siempre dejan subir SVG.
   $("#b-png").onclick = async () => {

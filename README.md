@@ -2,7 +2,7 @@
 
 - **App para estudiantes:** https://oneill162.github.io/bitacora-taller/
 - **Proyecto Supabase:** `glwinbslxgurmzyvttyo` (us-east-2)
-- **Código de clase actual:** `TALLER-2026`
+- **Código de clase:** `2108` (fijo: es el número del grupo)
 
 Tres piezas que hacen una sola cosa: que lo que los estudiantes diagnostican todos los
 días se acumule en un lugar consultable.
@@ -53,13 +53,15 @@ propia es el **código de clase**.
 
 ### 2b. El código de clase
 Como el endpoint de registro es público, hace falta un código para que no cualquiera
-abra cuentas. Empieza en `TALLER-2026`. Cámbialo cada semestre:
+abra cuentas. Es **`2108`**, el número del grupo, y no cambia por semestre. Vive en la
+tabla `ajustes`, no en el código de la app, por si alguna vez hay que moverlo:
 
 ```sql
 update public.ajustes set valor = 'TU-CODIGO-NUEVO' where clave = 'codigo_registro';
 ```
 
-El estudiante lo escribe **una sola vez**, al crear la cuenta. Para entrar después
+El estudiante lo escribe **a mano una sola vez**, al crear la cuenta. Nada se lo
+llena solo: el campo es obligatorio en el formulario de *Crear cuenta*. Para entrar después
 solo necesita usuario y contraseña. Solo el instructor puede leer o cambiar el
 código; un estudiante que consulte la tabla `ajustes` recibe cero filas.
 
@@ -124,13 +126,12 @@ para pegar en la plataforma de los estudiantes o proyectar en clase. Se puede
 descargar como PNG o imprimir.
 
 El QR se dibuja en el navegador, no es un archivo guardado en el repo: lleva
-siempre la dirección desde donde se abrió la app y el código de clase que esté
-puesto hoy, así que cambiarlo cada semestre no obliga a regenerar nada.
+siempre la dirección desde donde se abrió la app.
 
-Por omisión el enlace incluye el código (`?codigo=TALLER-2026`). El estudiante
-escanea y la app le abre directo en *Crear cuenta* con el campo ya lleno: solo
-pone su nombre, grupo y contraseña. Se puede quitar con el interruptor si el
-enlace va a un sitio abierto, y entonces habrá que dictarles el código aparte.
+El enlace es `?nuevo=1`: el estudiante escanea y la app le abre directo en
+*Crear cuenta*, pero **el código no viaja en el enlace**. Va impreso en el cartel
+(`Código de clase: 2108`) para que lo escriba. Así un enlace que se cuele fuera
+del salón no sirve para abrir cuentas por sí solo.
 
 ## La vista del instructor
 
