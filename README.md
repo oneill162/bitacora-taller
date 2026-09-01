@@ -13,6 +13,7 @@ docs/      Lo que abren los estudiantes del teléfono. HTML plano + Supabase.
 supabase/  El esquema de la base de datos, con Row Level Security.
 sync/      Baja lo entregado y lo escribe como notas en el vault.
 vault/     El vault de Obsidian: manual, plantillas y todo lo acumulado.
+pruebas/   Comprueban que el trabajo no se pierde sin señal. Ver pruebas/LÉEME.md.
 ```
 
 ## Cómo se separa el trabajo de cada estudiante
@@ -97,9 +98,9 @@ Abre `vault/` como vault en Obsidian e instala **Dataview** (las tablas de
 
 ## Lo que este sistema NO hace
 
-- **No funciona sin internet.** La app guarda directo en Supabase; si se cae la
-  conexión, el estudiante ve "Sin guardar" y tiene que reintentar. Para el taller
-  sin señal está la plantilla en papel de `01-Plantillas`.
+- **No deja entrar por primera vez sin internet.** Crear la cuenta y el primer
+  acceso necesitan conexión, y ver el trabajo de los demás también. Todo lo
+  demás sí funciona sin señal — ver la sección siguiente.
 - **No recupera contraseñas solo.** Como no hay correo real, si un estudiante
   olvida la suya se la reinicias desde Authentication → Users en el panel.
 - **No comprueba contraseñas filtradas.** Supabase puede validar contra
@@ -109,6 +110,44 @@ Abre `vault/` como vault en Obsidian e instala **Dataview** (las tablas de
   datos: lo que edites en `04-Diagnosticos` se pierde en la próxima corrida. Tus
   notas van en `02-Equipos` y `03-Estudiantes`, que el script nunca sobreescribe.
 
+## El taller sin señal
+
+El sótano donde están los equipos no tiene wifi. Por eso la app **no guarda en
+Supabase: guarda en el teléfono del estudiante y de ahí sube.** Escribir en el
+teléfono no depende de la red, así que guardar nunca falla; lo único que puede
+fallar es la subida, y esa se reintenta sola.
+
+En la barra de arriba aparece lo que falta: *"Sin conexión · 3 por subir"*.
+Cuando vuelve la señal se suben solas y el aviso desaparece. Un diagnóstico
+empezado sin internet sube completo, con su equipo y sus 40 puntos, porque la
+hoja nace con su identificador ya puesto en el teléfono y no lo tiene que
+inventar Supabase.
+
+La app **abre** sin señal porque un service worker (`docs/sw.js`) guarda copia
+de todo lo que necesita. Por eso `supabase-js` vive en `docs/vendor/` y no en
+un CDN: en un sótano sin wifi no se puede depender de que se baje una
+librería. Al publicar cambios en `docs/`, sube `VERSION` en `sw.js` — es lo
+que hace que los teléfonos suelten la copia vieja.
+
+Dos cosas que hubo que resolver y no son obvias:
+
+- **`navigator.onLine` miente.** Con el wifi del plantel conectado y sin salida
+  a internet dice que sí hay conexión. La app comprueba aparte si Supabase de
+  verdad contesta, y si no, le abre al estudiante su bitácora guardada en vez
+  de mandarlo a la pantalla de entrar.
+- **Una consulta a Supabase puede colgarse para siempre** en esa misma
+  situación: la librería reintenta por dentro y no se rinde. Todas las
+  llamadas llevan un corte de 10 segundos. Sin él la app se quedaba en
+  "Cargando la bitácora…" hasta que el estudiante la cerrara.
+
+Al salir se borra lo guardado en el teléfono, porque los equipos del taller se
+comparten y el trabajo de uno no puede quedar en la sesión del que sigue. Si
+queda algo sin subir, la app avisa antes de borrarlo.
+
+```bash
+node pruebas/correr.mjs   # cortando la red de verdad, con Chromium
+```
+
 ## El repositorio es público, los datos no
 
 El repo lleva el código, el manual y las plantillas. **No lleva datos de
@@ -116,6 +155,10 @@ estudiantes.** `.gitignore` excluye `vault/02-Equipos`, `vault/03-Estudiantes` y
 `vault/04-Diagnosticos`, que son justo las carpetas que `sync.mjs` llena con
 nombres, grupos y el trabajo de cada quien. Si alguna vez las necesitas fuera de
 tu máquina, van a un repo privado aparte, nunca a este.
+
+Lo que sí lleva, además del código, es `docs/vendor/supabase.js`: la librería
+de Supabase copiada tal cual del CDN (versión 2.112.4) para que la app pueda
+abrir sin internet. No es código de este proyecto y no hay que editarlo.
 
 La llave que sí está en el repo (`sb_publishable_...`) está diseñada para vivir en
 el navegador de cualquiera. La que nunca puede estar es `service_role`, que vive
