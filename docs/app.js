@@ -1,6 +1,10 @@
-import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
 import { SUPABASE_URL, SUPABASE_ANON, DOMINIO_LOGIN, NOMBRE_TALLER } from "./config.js";
 import { GRUPOS, PUNTOS, ESTADOS, VEREDICTOS, resumir } from "./protocolo.js";
+import * as local from "./local.js";
+
+// supabase-js lo carga index.html desde docs/vendor/, no desde un CDN: en un
+// taller sin señal no se puede depender de que se baje una librería.
+const { createClient } = window.supabase;
 
 const sb = createClient(SUPABASE_URL, SUPABASE_ANON);
 const $ = s => document.querySelector(s);
@@ -13,8 +17,16 @@ const estado = {
   puntos: {},       // { clave: {estado, nota} }
   equipo: null,     // equipo enlazado
   lista: [],
-  pendiente: null   // timeout de autoguardado
+  todo: [],         // lo de todo el taller, solo para el instructor
+  pendiente: null,  // timeout de autoguardado
+  enLinea: true,    // navigator.onLine, para pintarlo en la barra
+  porSubir: 0       // cuánto guardó el equipo que Supabase todavía no tiene
 };
+
+// grupo y título de cada punto, para poder guardarlos sin señal sin
+// tener que buscarlos en PUNTOS cada vez
+const META_PUNTOS = Object.fromEntries(
+  PUNTOS.map(p => [p.clave, { grupo: p.grupo, titulo: p.titulo }]));
 
 /* ================= utilidades ================= */
 const esc = s => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
@@ -48,29 +60,139 @@ function explicar(err){
   return err?.message || "Algo salió mal. Intenta de nuevo.";
 }
 
+// Distingue "no hay internet" de "el servidor dijo que no". Lo primero se
+// aguanta en silencio, que para eso está el guardado local; lo segundo hay
+// que enseñarlo.
+function esDeRed(err){
+  const m = (err?.message || String(err || "")).toLowerCase();
+  return m.includes("failed to fetch") || m.includes("networkerror")
+      || m.includes("load failed") || m.includes("network request failed");
+}
+
+/* ================= conexión y subida ================= */
+// Una consulta a Supabase puede quedarse colgada para siempre cuando el wifi
+// está conectado pero no sale a ningún lado: la librería reintenta por dentro
+// y nunca se rinde. Sin este corte la app se queda en "Cargando la bitácora"
+// hasta que el estudiante la cierre. El corte devuelve un error con la misma
+// forma que devolvería Supabase, así que quien llama no tiene que enterarse.
+const CORTE = 10000;
+const conCorte = (consulta, ms = CORTE) => Promise.race([
+  consulta,
+  new Promise(ok => setTimeout(
+    () => ok({ data:null, error:{ message:"Failed to fetch: Supabase no contestó a tiempo." } }), ms))
+]);
+
+// navigator.onLine dice si hay wifi. hayServidor dice si Supabase de verdad
+// contesta, que en la escuela no es lo mismo: el wifi del plantel conecta y
+// no sale a ningún lado. Solo se apaga cuando algo falla de verdad, y se
+// vuelve a encender para reintentar; así una sola llamada fallida evita que
+// las siguientes se queden esperando el corte completo.
+let hayServidor = true;
+const conectado = () => navigator.onLine && hayServidor;
+
+async function supabaseResponde(){
+  if(!navigator.onLine){ hayServidor = false; return false; }
+  try{
+    // cualquier respuesta sirve, hasta un 401: lo que se mide es si llega
+    await fetch(`${SUPABASE_URL}/auth/v1/health`,
+                { cache:"no-store", signal: AbortSignal.timeout(4000) });
+    hayServidor = true;
+    return true;
+  } catch(_){ hayServidor = false; return false; }
+}
+
+function textoConexion(){
+  const n = estado.porSubir || 0;
+  if(!estado.enLinea) return n ? `Sin conexión · ${n} por subir` : "Sin conexión";
+  return n ? `${n} por subir` : "";
+}
+
+function pintarConexion(){
+  const el = $("#conexion");
+  if(!el) return;
+  const t = textoConexion();
+  el.textContent = t;
+  el.hidden = !t;
+  el.dataset.off = estado.enLinea ? "" : "1";
+}
+
+// Intenta llevarle a Supabase todo lo que el equipo tiene guardado y no ha
+// subido. Se llama al guardar, al recuperar la señal y cada tanto.
+async function empujar(marca){
+  const r = await local.sincronizar(sb, conectado());
+  estado.porSubir = r.pendientes;
+  if(r.error && esDeRed(r.error)) hayServidor = false;
+  else if(r.hablo && !r.error) hayServidor = true;
+  estado.enLinea = conectado();
+  pintarConexion();
+  if(marca) marca.textContent = r.pendientes === 0 ? "Guardado" : "Guardado en este equipo";
+  if(r.error && !esDeRed(r.error)) aviso(explicar(r.error));
+  return r;
+}
+
 /* ================= arranque ================= */
 async function iniciar(){
-  const { data:{ session } } = await sb.auth.getSession();
-  if(session) await cargarPerfil(session.user.id);
-  else estado.vista = "acceso";
+  estado.enLinea = navigator.onLine;
+  hayServidor = navigator.onLine;
+
+  let sesion = null;
+  try { sesion = (await sb.auth.getSession()).data.session; } catch(_){}
+
+  if(sesion){
+    await cargarPerfil(sesion.user.id);
+  } else {
+    // Sin señal el token no se puede renovar y Supabase devuelve sesión nula.
+    // Con el perfil guardado en el equipo la app abre igual y el estudiante
+    // sigue trabajando; lo suyo sube cuando vuelva el internet.
+    const guardado = await local.leerMeta("perfil");
+    if(guardado && !(await supabaseResponde())) await usarPerfil(guardado);
+    else estado.vista = "acceso";
+  }
   pintar();
+  if(estado.perfil) empujar();
+
+  addEventListener("online", () => {
+    hayServidor = true; estado.enLinea = true; pintarConexion();
+    if(estado.perfil) empujar($("#r-guardado"));
+  });
+  addEventListener("offline", () => {
+    hayServidor = false; estado.enLinea = false; pintarConexion();
+  });
+
+  // El evento "online" miente cuando el wifi está pero no pasa tráfico.
+  // Reintentar cada medio minuto cubre esa señal de taller que va y viene:
+  // se vuelve a dar por buena la conexión y que el intento diga la verdad.
+  setInterval(() => {
+    if(estado.perfil && estado.porSubir){ hayServidor = true; empujar(); }
+  }, 30000);
 
   sb.auth.onAuthStateChange(async (evt, ses) => {
     if(evt === "SIGNED_OUT"){
-      estado.perfil = null; estado.vista = "acceso"; pintar();
+      estado.perfil = null; estado.lista = []; estado.porSubir = 0;
+      estado.vista = "acceso"; pintar();
     }
   });
 }
 
 async function cargarPerfil(id, reintento = 0){
-  const { data, error } = await sb.from("perfiles").select("*").eq("id", id).maybeSingle();
-  if(error){ aviso(explicar(error)); return; }
+  const { data, error } = await conCorte(sb.from("perfiles").select("*").eq("id", id).maybeSingle());
+  if(error){
+    const guardado = await local.leerMeta("perfil");
+    if(guardado?.id === id){ await usarPerfil(guardado); return; }
+    aviso(explicar(error)); return;
+  }
   // el perfil lo crea un trigger; en el primer registro puede tardar un instante
   if(!data && reintento < 3){
     await new Promise(r => setTimeout(r, 400));
     return cargarPerfil(id, reintento + 1);
   }
-  estado.perfil = data;
+  if(!data){ aviso("No aparece tu perfil. Avisa al instructor."); return; }
+  await local.guardarMeta("perfil", data);
+  await usarPerfil(data);
+}
+
+async function usarPerfil(p){
+  estado.perfil = p;
   estado.vista = "panel";
   await cargarLista();
 }
@@ -149,7 +271,7 @@ function montarAcceso(){
         // así queda confirmada de una y no se envía ningún correo. auth.signUp
         // intentaría escribirle a un dominio que no existe y chocaría con el
         // límite de correos del plan gratuito.
-        const { error } = await sb.functions.invoke("registro", {
+        const { error } = await conCorte(sb.functions.invoke("registro", {
           body: {
             usuario, password: clave,
             codigo:  $("#a-codigo").value.trim(),
@@ -157,18 +279,20 @@ function montarAcceso(){
             grupo:   $("#a-grupo").value.trim(),
             escuela: $("#a-escuela").value.trim()
           }
-        });
+        }));
         if(error){
           let msg = "No se pudo crear la cuenta. Revisa el internet y vuelve a intentar.";
           try { msg = (await error.context.json()).error || msg; } catch(_){}
           aviso(msg); btn.disabled = false; return;
         }
         // cuenta creada: entrar de una vez
-        const { data, error: eEntrar } = await sb.auth.signInWithPassword({ email: correo, password: clave });
+        const { data, error: eEntrar } = await conCorte(
+          sb.auth.signInWithPassword({ email: correo, password: clave }));
         if(eEntrar) throw eEntrar;
         await cargarPerfil(data.session.user.id);
       } else {
-        const { data, error } = await sb.auth.signInWithPassword({ email: correo, password: clave });
+        const { data, error } = await conCorte(
+          sb.auth.signInWithPassword({ email: correo, password: clave }));
         if(error) throw error;
         await cargarPerfil(data.session.user.id);
       }
@@ -181,15 +305,23 @@ function montarAcceso(){
 }
 
 /* ================= panel ================= */
+// La lista sale siempre del equipo del estudiante. Si hay señal, primero se
+// baja lo de Supabase y se copia aquí; así la próxima vez sin internet la
+// bitácora sigue estando completa.
 async function cargarLista(){
-  const { data, error } = await sb
-    .from("diagnosticos")
-    .select("id, orden, fecha, estado, veredicto, conteo, equipos(serial, marca, modelo)")
-    .order("fecha", { ascending:false })
-    .order("creado_en", { ascending:false })
-    .limit(200);
-  if(error){ aviso(explicar(error)); return; }
-  estado.lista = data || [];
+  if(conectado()){
+    const { data, error } = await conCorte(sb
+      .from("diagnosticos")
+      .select("id, orden, fecha, creado_en, estado, veredicto, conteo, equipos(serial, marca, modelo)")
+      .order("fecha", { ascending:false })
+      .order("creado_en", { ascending:false })
+      .limit(200));
+    if(error){ if(esDeRed(error)) hayServidor = false; else aviso(explicar(error)); }
+    else await local.espejarLista(data || []);
+  }
+  estado.lista = await local.listaLocal();
+  estado.porSubir = await local.porSubir();
+  estado.enLinea = conectado();
 }
 
 function vistaPanel(){
@@ -233,14 +365,24 @@ function vistaPanel(){
 }
 
 function montarPanel(){
+  // La hoja nace en el equipo del estudiante, con su id ya puesto. Así se
+  // puede empezar un diagnóstico en un taller sin señal y subirlo después:
+  // el id no lo tiene que inventar Supabase.
   const nuevo = async () => {
-    const { data, error } = await sb.from("diagnosticos").insert({
+    const d = {
+      id: local.nuevoId(),
       autor_id: estado.perfil.id,
+      equipo_id: null,
       fecha: hoy(),
-      orden: "DX-" + hoy().replace(/-/g,"").slice(2) + "-" + String(estado.lista.length + 1).padStart(2,"0")
-    }).select().single();
-    if(error){ aviso(explicar(error)); return; }
-    await abrir(data.id);
+      orden: "DX-" + hoy().replace(/-/g,"").slice(2) + "-" + String(estado.lista.length + 1).padStart(2,"0"),
+      usuario_equipo: "", sistema: "", estado: "borrador", veredicto: "", conteo: {},
+      acciones: "", hallazgos: "", proximo_paso: "",
+      creado_en: new Date().toISOString(), entregado_en: null
+    };
+    await local.guardarDiag(d);
+    estado.diag = d; estado.equipo = null; estado.puntos = {};
+    estado.vista = "editor"; pintar();
+    empujar();
   };
   $("#b-nuevo")?.addEventListener("click", nuevo);
   $("#b-nuevo-2")?.addEventListener("click", nuevo);
@@ -253,15 +395,27 @@ function montarPanel(){
 
 /* ================= editor ================= */
 async function abrir(id){
-  const [{ data: d, error: e1 }, { data: pts, error: e2 }] = await Promise.all([
-    sb.from("diagnosticos").select("*, equipos(*)").eq("id", id).single(),
-    sb.from("puntos").select("clave, estado, nota").eq("diagnostico_id", id)
-  ]);
-  if(e1 || e2){ aviso(explicar(e1 || e2)); return; }
+  // Si hay señal se refresca desde Supabase, salvo que la copia de aquí
+  // tenga cambios sin subir: en ese caso la buena es la de este equipo.
+  if(conectado()){
+    const [{ data: d, error: e1 }, { data: pts, error: e2 }] = await Promise.all([
+      conCorte(sb.from("diagnosticos").select("*, equipos(*)").eq("id", id).single()),
+      conCorte(sb.from("puntos").select("clave, grupo, titulo, estado, nota").eq("diagnostico_id", id))
+    ]);
+    if(d && !e1 && !e2) await local.espejarDiag(d, pts || [], d.equipos);
+    else if(e1 || e2){ if(esDeRed(e1 || e2)) hayServidor = false; else aviso(explicar(e1 || e2)); }
+  }
+
+  const d = await local.leerDiag(id);
+  if(!d){ aviso("Esa hoja no está guardada en este equipo y no hay conexión para bajarla."); return; }
   estado.diag = d;
-  estado.equipo = d.equipos || null;
-  estado.puntos = {};
-  (pts || []).forEach(p => { estado.puntos[p.clave] = { estado: p.estado || "", nota: p.nota || "" }; });
+  // El equipo sale del almacén de equipos, no del objeto anidado en la hoja:
+  // ese solo lleva serial, marca y modelo, que es lo que enseña el panel. Si
+  // se tomara de ahí, reabrir una hoja guardada sin señal vaciaría el tipo, el
+  // inventario y la ubicación en pantalla, y el próximo guardado los borraría.
+  const serial = d._serial || d.equipos?.serial;
+  estado.equipo = (serial ? await local.leerEquipo(serial) : null) || d.equipos || null;
+  estado.puntos = await local.leerPuntos(id);
   estado.vista = d.estado === "entregado" ? "reporte" : "editor";
   pintar();
 }
@@ -361,8 +515,10 @@ function montarEditor(){
   };
   $("#b-borrar").onclick = async () => {
     if(!confirm("Se borra esta hoja y todo lo anotado. ¿Seguro?")) return;
-    const { error } = await sb.from("diagnosticos").delete().eq("id", estado.diag.id);
-    if(error){ aviso(explicar(error)); return; }
+    clearTimeout(estado.pendiente);
+    // Sin señal el borrado queda anotado y se le avisa a Supabase después.
+    await local.marcarBorrado(estado.diag.id);
+    await empujar();
     await cargarLista(); estado.vista = "panel"; pintar();
   };
 
@@ -409,54 +565,37 @@ function programarGuardado(){
   estado.pendiente = setTimeout(guardar, 800);
 }
 
+// Guardar es escribir en el equipo del estudiante; subir es lo que viene
+// después y puede esperar. Por eso ya no existe "Sin guardar": lo anotado
+// no se pierde aunque el taller no tenga señal.
 async function guardar(){
   const marca = $("#r-guardado");
-  try{
-    // 1) el equipo, si hay serial
-    const serial = $("#e-serial")?.value.trim();
-    let equipo_id = estado.diag.equipo_id;
-    if(serial){
-      const fila = { serial };
-      CAMPOS_EQ.filter(c => c !== "serial").forEach(c => { fila[c] = $("#e-" + c).value.trim(); });
-      if(!estado.equipo) fila.creado_por = estado.perfil.id;
-      const { data: eq, error: eEq } = await sb.from("equipos")
-        .upsert(fila, { onConflict: "serial" }).select().single();
-      if(eEq) throw eEq;
-      estado.equipo = eq;
-      equipo_id = eq.id;
-    }
 
-    // 2) el encabezado del diagnóstico
-    const r = resumir(estadosPlanos());
-    const cambios = { equipo_id, veredicto: r.veredicto, conteo: r.conteo };
-    CAMPOS_DIAG.forEach(c => { cambios[c] = $("#d-" + c).value; });
-    const { data: d, error: eD } = await sb.from("diagnosticos")
-      .update(cambios).eq("id", estado.diag.id).select().single();
-    if(eD) throw eD;
-    estado.diag = { ...estado.diag, ...d };
-
-    // 3) los puntos tocados
-    const filas = Object.keys(estado.puntos)
-      .filter(k => estado.puntos[k].estado || estado.puntos[k].nota)
-      .map(k => {
-        const meta = PUNTOS.find(p => p.clave === k);
-        return {
-          diagnostico_id: estado.diag.id, clave: k,
-          grupo: meta?.grupo || "", titulo: meta?.titulo || "",
-          estado: estado.puntos[k].estado || "", nota: estado.puntos[k].nota || ""
-        };
-      });
-    if(filas.length){
-      const { error: eP } = await sb.from("puntos")
-        .upsert(filas, { onConflict: "diagnostico_id,clave" });
-      if(eP) throw eP;
-    }
-    if(marca) marca.textContent = "Guardado";
-    aviso("");
-  } catch(err){
-    if(marca) marca.textContent = "Sin guardar";
-    aviso(explicar(err));
+  // 1) el equipo, si hay serial
+  const serial = ($("#e-serial")?.value || "").trim();
+  let equipo = null;
+  if(serial){
+    equipo = { ...(estado.equipo || {}), serial };
+    CAMPOS_EQ.filter(c => c !== "serial").forEach(c => { equipo[c] = $("#e-" + c).value.trim(); });
+    if(!equipo.creado_por) equipo.creado_por = estado.perfil.id;
+    estado.equipo = equipo;
   }
+
+  // 2) el encabezado del diagnóstico. _serial queda anotado para poder
+  //    enlazar el equipo al subir, cuando Supabase diga cuál es su id.
+  const r = resumir(estadosPlanos());
+  const d = { ...estado.diag, veredicto: r.veredicto, conteo: r.conteo, _serial: serial };
+  CAMPOS_DIAG.forEach(c => { d[c] = $("#d-" + c).value; });
+  if(equipo) d.equipos = { serial: equipo.serial, marca: equipo.marca, modelo: equipo.modelo };
+  estado.diag = d;
+
+  // 3) al disco de este equipo, con los puntos. Esto no depende de la red.
+  await local.guardarTrabajo(d, estado.puntos, equipo, META_PUNTOS);
+  if(marca) marca.textContent = "Guardado en este equipo";
+  aviso("");
+
+  // 4) y de aquí a Supabase, si se puede
+  await empujar(marca);
 }
 
 async function entregar(){
@@ -464,12 +603,11 @@ async function entregar(){
   await guardar();
   const r = resumir(estadosPlanos());
   if(!r.completo && !confirm(`Quedan ${r.conteo.sin} puntos sin evaluar. ¿Entregar así?`)) return;
-  const { data, error } = await sb.from("diagnosticos")
-    .update({ estado: "entregado", entregado_en: new Date().toISOString(),
-              veredicto: r.veredicto, conteo: r.conteo })
-    .eq("id", estado.diag.id).select().single();
-  if(error){ aviso(explicar(error)); return; }
-  estado.diag = { ...estado.diag, ...data };
+  estado.diag = { ...estado.diag, estado: "entregado",
+                  entregado_en: new Date().toISOString(),
+                  veredicto: r.veredicto, conteo: r.conteo };
+  await local.guardarDiag(estado.diag);
+  await empujar();
   estado.vista = "reporte";
   pintar();
 }
@@ -535,19 +673,25 @@ function montarReporte(){
   $("#b-volver").onclick = async () => { await cargarLista(); estado.vista = "panel"; pintar(); };
   $("#b-imprimir").onclick = () => window.print();
   $("#b-reabrir")?.addEventListener("click", async () => {
-    const { data, error } = await sb.from("diagnosticos")
-      .update({ estado: "borrador", entregado_en: null }).eq("id", estado.diag.id).select().single();
-    if(error){ aviso(explicar(error)); return; }
-    estado.diag = { ...estado.diag, ...data };
+    estado.diag = { ...estado.diag, estado: "borrador", entregado_en: null };
+    await local.guardarDiag(estado.diag);
+    await empujar();
     estado.vista = "editor"; pintar();
   });
 }
 
 /* ================= vista de instructor ================= */
+// Lo único que no funciona sin señal: el trabajo de los demás nunca se
+// guarda en el equipo del instructor, porque no es suyo.
 async function cargarInstructor(){
-  const { data, error } = await sb.from("vista_diagnosticos")
-    .select("*").order("fecha", { ascending:false }).limit(500);
-  if(error){ aviso(explicar(error)); return; }
+  if(!conectado()){
+    estado.todo = []; pintar();
+    aviso("Ver el taller completo necesita conexión. Tus hojas sí están aquí.");
+    return;
+  }
+  const { data, error } = await conCorte(sb.from("vista_diagnosticos")
+    .select("*").order("fecha", { ascending:false }).limit(500));
+  if(error){ estado.todo = []; pintar(); aviso(explicar(error)); return; }
   estado.todo = data || [];
   pintar();
 }
@@ -618,13 +762,28 @@ function montarInstructor(){
     $("#" + id).addEventListener("input", filtrar));
 }
 
+// Al salir se borra lo guardado en este equipo: las máquinas del taller se
+// comparten y el trabajo de uno no puede quedar en la sesión del que sigue.
+// Por eso primero se intenta subir, y si algo queda pendiente se pregunta.
+async function salir(){
+  const r = await local.sincronizar(sb, conectado());
+  if(r.pendientes > 0 && !confirm(
+      `Quedan ${r.pendientes} cosas guardadas en este equipo que todavía no suben a la bitácora. ` +
+      `Si sales ahora se pierden. ¿Salir de todas formas?`)) return;
+  await local.olvidarTodo();
+  try { await sb.auth.signOut(); }
+  catch(_){ estado.perfil = null; estado.lista = []; estado.porSubir = 0;
+            estado.vista = "acceso"; pintar(); }
+}
+
 /* ================= router ================= */
 function barra(){
   const p = estado.perfil;
   return `
   <header class="barra no-print"><div class="barra-in">
     <div class="marca"><strong>Bitácora de Diagnóstico</strong><span>${esc(NOMBRE_TALLER)}</span></div>
-    ${p ? `<div class="quien"><b>${esc(p.nombre || p.usuario)}</b>${esc(p.usuario)}${
+    ${p ? `<span class="conexion" id="conexion" hidden></span>
+      <div class="quien"><b>${esc(p.nombre || p.usuario)}</b>${esc(p.usuario)}${
       p.rol === "instructor" ? " · instructor" : ""}</div>
       <button class="btn ghost chico" id="b-salir">Salir</button>` : ""}
   </div></header>`;
@@ -634,9 +793,10 @@ function pintar(){
   const vistas = { acceso: vistaAcceso, panel: vistaPanel, editor: vistaEditor,
                    reporte: vistaReporte, instructor: vistaInstructor };
   app.innerHTML = barra() + "<main>" + vistas[estado.vista]() + "</main>";
-  $("#b-salir")?.addEventListener("click", async () => { await sb.auth.signOut(); });
+  $("#b-salir")?.addEventListener("click", salir);
   ({ acceso: montarAcceso, panel: montarPanel, editor: montarEditor,
      reporte: montarReporte, instructor: montarInstructor })[estado.vista]();
+  pintarConexion();
   window.scrollTo(0, 0);
 }
 

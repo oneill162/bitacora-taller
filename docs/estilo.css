@@ -60,6 +60,10 @@ a{color:var(--accent)}
 .marca strong{font-family:var(--f-display);font-weight:700;font-size:.98rem;letter-spacing:-.015em}
 .marca span{font-family:var(--f-mono);font-size:.62rem;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-3);
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.conexion{font-family:var(--f-display);font-size:.62rem;font-weight:600;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--obs);background:var(--obs-bg);
+  padding:.2rem .5rem;border-radius:999px;white-space:nowrap}
+.conexion[data-off="1"]{color:var(--ink-2);background:var(--surface-2)}
 .quien{font-family:var(--f-mono);font-size:.7rem;color:var(--ink-3);text-align:right;line-height:1.4}
 .quien b{display:block;color:var(--ink-2);font-size:.78rem}
 

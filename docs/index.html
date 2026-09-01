@@ -23,6 +23,17 @@
     <p class="sub">Esta bitácora necesita JavaScript activado. Actívalo en el navegador y recarga la página.</p>
   </div></main>
 </noscript>
+<!-- supabase-js vive en el repo, no en un CDN: la app tiene que abrir sin señal.
+     Etiqueta clásica y antes del módulo, que es lo que define window.supabase. -->
+<script src="./vendor/supabase.js"></script>
 <script type="module" src="./app.js"></script>
+<script>
+// El service worker guarda copia de la app para que abra sin señal.
+// Falla en silencio si el navegador no lo permite: la app funciona igual,
+// solo que necesitando internet para cargar.
+if("serviceWorker" in navigator){
+  addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
+}
+</script>
 </body>
 </html>
