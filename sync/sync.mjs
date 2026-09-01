@@ -62,6 +62,16 @@ const ETQ = { ok: "Bien", obs: "Observación", falla: "Falla", na: "N/A", "": "�
 
 // Obsidian se atraganta con estos caracteres en nombres de archivo y enlaces
 const limpio = s => String(s ?? "").replace(/[\/\\:*?"<>|#^\[\]]/g, "-").replace(/\s+/g, " ").trim();
+
+// El nombre de la nota de un equipo LLEVA EL SERIAL, y no es un adorno: un
+// laboratorio escolar tiene máquinas idénticas, y nombrar la nota solo por
+// marca y modelo hacía que la segunda Dell OptiPlex 3080 cayera en el mismo
+// archivo. Como las notas de equipo no se sobreescriben, esa segunda máquina
+// se descartaba entera y su historial no aparecía en el vault.
+const nombreDeEquipo = (marca, modelo, serial) => {
+  const desc = `${marca || ""} ${modelo || ""}`.trim();
+  return limpio(desc ? `${desc} (${serial})` : serial);
+};
 const yaml = s => JSON.stringify(String(s ?? ""));   // comillas y escapes válidos en YAML
 
 function escribir(ruta, texto, soloSiFalta = false) {
@@ -84,7 +94,7 @@ function notaDiagnostico(d, puntos) {
     { serial: d.equipo_serial, marca: d.equipo_marca, modelo: d.equipo_modelo },
     PUNTOS.length);
   const nombreEquipo = d.equipo_serial
-    ? limpio(`${d.equipo_marca || ""} ${d.equipo_modelo || ""}`.trim() || d.equipo_serial)
+    ? nombreDeEquipo(d.equipo_marca, d.equipo_modelo, d.equipo_serial)
     : null;
 
   const fm = [
@@ -175,7 +185,7 @@ inventario: ${yaml(e.inventario)}
 ubicacion: ${yaml(e.ubicacion)}
 tags: [equipo]
 ---
-# ${limpio(`${e.marca || ""} ${e.modelo || ""}`.trim() || e.serial)}
+# ${nombreDeEquipo(e.marca, e.modelo, e.serial)}
 
 Serial \`${e.serial}\`${e.inventario ? ` · inventario \`${e.inventario}\`` : ""}${e.ubicacion ? ` · ${e.ubicacion}` : "  ·  _sin salón registrado_"}
 
@@ -248,7 +258,7 @@ async function main() {
   }
 
   for (const e of equipos) {
-    const nombre = limpio(`${e.marca || ""} ${e.modelo || ""}`.trim() || e.serial);
+    const nombre = nombreDeEquipo(e.marca, e.modelo, e.serial);
     cuenta[escribir(join(ENV.VAULT, "02-Equipos", nombre + ".md"), notaEquipo(e), true)]++;
   }
 

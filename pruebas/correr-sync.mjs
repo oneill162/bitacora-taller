@@ -6,7 +6,7 @@
 // prueba deje un .env falso al lado del de verdad.
 import { createServer } from "node:http";
 import { spawn } from "node:child_process";
-import { mkdtemp, cp, writeFile, readFile, rm, mkdir } from "node:fs/promises";
+import { mkdtemp, cp, writeFile, readFile, rm, mkdir, readdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -41,7 +41,10 @@ const PUNTOS_API = [
 const PERFILES = [{ usuario: "lrivera", nombre: "Luis Rivera", grupo: "4-B", escuela: "Escuela", rol: "estudiante" }];
 const EQUIPOS = [
   { serial: "ACER77", marca: "Acer", modelo: "Veriton", tipo: "Torre", inventario: "INV-990", ubicacion: "Salón 110" },
-  { serial: "SINSALON", marca: "Asus", modelo: "ExpertBook", tipo: "Portátil", inventario: "", ubicacion: "" }
+  { serial: "SINSALON", marca: "Asus", modelo: "ExpertBook", tipo: "Portátil", inventario: "", ubicacion: "" },
+  // dos máquinas idénticas: lo normal en un laboratorio escolar
+  { serial: "GEMELA-A", marca: "Dell", modelo: "OptiPlex 3080", tipo: "Torre", inventario: "INV-001", ubicacion: "Salón 204" },
+  { serial: "GEMELA-B", marca: "Dell", modelo: "OptiPlex 3080", tipo: "Torre", inventario: "INV-002", ubicacion: "Salón 204" }
 ];
 const RESPUESTAS = { vista_diagnosticos: DIAGS, puntos: PUNTOS_API, perfiles: PERFILES, equipos: EQUIPOS };
 
@@ -99,6 +102,8 @@ try {
   dice(!/Falta culminar/.test(completa), "y sin el aviso");
   dice(/veredicto_texto: "No apto"/.test(completa), "con el veredicto en texto");
   dice(/\| Falla \| Cable de corriente \| Forro pelado\. \|/.test(completa), "y sus puntos con la nota");
+  dice(/\[\[Acer Veriton \(ACER77\)\]\]/.test(completa),
+       "y enlaza a la nota del equipo por su nombre con serial");
 
   paso("La hoja a medias");
   dice(/^completa: false$/m.test(media), "sale marcada como incompleta");
@@ -108,13 +113,26 @@ try {
   dice(/^salon: ""$/m.test(media), "sin salón, pero con el campo puesto para que Dataview no se atragante");
 
   paso("Notas de equipo y estudiante");
-  const eq = await readFile(join(VAULT, "02-Equipos", "Acer Veriton.md"), "utf8");
-  const sin = await readFile(join(VAULT, "02-Equipos", "Asus ExpertBook.md"), "utf8");
+  const eq = await readFile(join(VAULT, "02-Equipos", "Acer Veriton (ACER77).md"), "utf8");
+  const sin = await readFile(join(VAULT, "02-Equipos", "Asus ExpertBook (SINSALON).md"), "utf8");
   dice(/ubicacion: "Salón 110"/.test(eq), "el equipo lleva su salón");
   dice(/sin salón registrado/.test(sin), "y el que no lo tiene lo dice, en vez de quedar en blanco");
 
+  paso("Dos máquinas del mismo modelo no se pisan");
+  // El nombre de la nota llevaba solo marca y modelo, así que la segunda
+  // Dell OptiPlex 3080 caía en el mismo archivo y, como las notas de equipo
+  // no se sobreescriben, se descartaba entera con su historial.
+  const notasEq = (await readdir(join(VAULT, "02-Equipos"))).filter(f => f.endsWith(".md"));
+  dice(notasEq.length === EQUIPOS.length,
+       `una nota por máquina, ${EQUIPOS.length} en total (vio ${notasEq.length}: ${notasEq.join(", ")})`);
+  const a = await readFile(join(VAULT, "02-Equipos", "Dell OptiPlex 3080 (GEMELA-A).md"), "utf8");
+  const b = await readFile(join(VAULT, "02-Equipos", "Dell OptiPlex 3080 (GEMELA-B).md"), "utf8");
+  dice(/serial: "GEMELA-A"/.test(a) && /serial: "GEMELA-B"/.test(b), "cada una con su serial");
+  dice(/inventario: "INV-001"/.test(a) && /inventario: "INV-002"/.test(b),
+       "y su número de inventario, que es lo que se perdía");
+
   paso("Lo que el instructor escribe no se pierde");
-  const notaEq = join(VAULT, "02-Equipos", "Acer Veriton.md");
+  const notaEq = join(VAULT, "02-Equipos", "Acer Veriton (ACER77).md");
   await writeFile(notaEq, eq + "\n\nAnotación del instructor: revisar en enero.\n");
   const r2 = await correr([]);
   dice(r2.status === 0, "segunda corrida sin error");
