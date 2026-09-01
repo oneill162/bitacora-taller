@@ -1,6 +1,7 @@
 import { SUPABASE_URL, SUPABASE_ANON, DOMINIO_LOGIN, NOMBRE_TALLER } from "./config.js";
 import { GRUPOS, PUNTOS, ESTADOS, VEREDICTOS, resumir } from "./protocolo.js";
 import * as local from "./local.js";
+import { avance, haceCuanto, filasTaller as armarFilas, resumenTaller as armarResumen } from "./taller.js";
 
 // supabase-js lo carga index.html desde docs/vendor/, no desde un CDN: en un
 // taller sin señal no se puede depender de que se baje una librería.
@@ -18,6 +19,11 @@ const estado = {
   equipo: null,     // equipo enlazado
   lista: [],
   todo: [],         // lo de todo el taller, solo para el instructor
+  autor: null,      // de quién es la hoja abierta; el instructor lee las ajenas
+  ajena: false,     // la hoja abierta no es mía: se mira, no se toca
+  taller: null,     // tablero del día: { fecha, grupo, estudiantes, hojas }
+  pestana: "hoy",   // qué mira el instructor: hoy | todo
+  latido: null,     // refresco automático del tablero
   pendiente: null,  // timeout de autoguardado
   enLinea: true,    // navigator.onLine, para pintarlo en la barra
   porSubir: 0       // cuánto guardó el equipo que Supabase todavía no tiene
@@ -168,7 +174,9 @@ async function iniciar(){
 
   sb.auth.onAuthStateChange(async (evt, ses) => {
     if(evt === "SIGNED_OUT"){
+      clearInterval(estado.latido); estado.latido = null;
       estado.perfil = null; estado.lista = []; estado.porSubir = 0;
+      estado.todo = []; estado.taller = null; estado.ajena = false; estado.autor = null;
       estado.vista = "acceso"; pintar();
     }
   });
@@ -387,10 +395,42 @@ function montarPanel(){
   $("#b-nuevo")?.addEventListener("click", nuevo);
   $("#b-nuevo-2")?.addEventListener("click", nuevo);
   $("#b-instructor")?.addEventListener("click", async () => {
-    estado.vista = "instructor"; pintar(); await cargarInstructor();
+    estado.pestana = "hoy";
+    if(!estado.taller) estado.taller = { fecha: hoy(), grupo: "", estudiantes: [], hojas: [] };
+    estado.vista = "instructor"; pintar(); await cargarTaller();
   });
   app.querySelectorAll("[data-abrir]").forEach(b =>
     b.addEventListener("click", () => abrir(b.dataset.abrir)));
+}
+
+/* ================= mirar la hoja de otro (instructor) ================= */
+// RLS deja al instructor EDITAR las hojas de sus estudiantes, no solo leerlas.
+// Por eso esto no pasa por abrir(): un borrador ajeno abierto en el editor
+// tiene autoguardado, y un toque para mirar le pisaría el trabajo a alguien
+// que lo está escribiendo. Se abre siempre el reporte, de solo lectura.
+//
+// Tampoco toca el almacén local: lo de aquí es "mi trabajo", y guardar hojas
+// ajenas las metería en "Mis diagnósticos" del instructor y las dejaría en el
+// equipo del taller después de cerrar sesión.
+async function abrirAjena(id){
+  if(!conectado()){ aviso("Leer la hoja de un estudiante necesita conexión."); return; }
+  const [{ data: d, error: e1 }, { data: pts, error: e2 }] = await Promise.all([
+    conCorte(sb.from("diagnosticos").select("*, equipos(*), perfiles(usuario, nombre, grupo, escuela)")
+      .eq("id", id).single()),
+    conCorte(sb.from("puntos").select("clave, estado, nota").eq("diagnostico_id", id))
+  ]);
+  if(e1 || e2 || !d){
+    if(esDeRed(e1 || e2)) hayServidor = false;
+    aviso(explicar(e1 || e2 || new Error("No se encontró la hoja."))); return;
+  }
+  estado.diag = d;
+  estado.equipo = d.equipos || null;
+  estado.autor = d.perfiles || null;
+  estado.ajena = true;
+  estado.puntos = {};
+  (pts || []).forEach(x => { estado.puntos[x.clave] = { estado: x.estado || "", nota: x.nota || "" }; });
+  estado.vista = "reporte";
+  pintar();
 }
 
 /* ================= editor ================= */
@@ -409,6 +449,7 @@ async function abrir(id){
   const d = await local.leerDiag(id);
   if(!d){ aviso("Esa hoja no está guardada en este equipo y no hay conexión para bajarla."); return; }
   estado.diag = d;
+  estado.autor = estado.perfil; estado.ajena = false;
   // El equipo sale del almacén de equipos, no del objeto anidado en la hoja:
   // ese solo lleva serial, marca y modelo, que es lo que enseña el panel. Si
   // se tomara de ahí, reabrir una hoja guardada sin señal vaciaría el tipo, el
@@ -614,7 +655,10 @@ async function entregar(){
 
 /* ================= reporte ================= */
 function vistaReporte(){
-  const d = estado.diag, eq = estado.equipo || {}, p = estado.perfil;
+  // El técnico de la hoja es su autor, no quien la está mirando: si el
+  // instructor abre la hoja de un estudiante, la firma sigue siendo del
+  // estudiante.
+  const d = estado.diag, eq = estado.equipo || {}, p = estado.autor || estado.perfil;
   const r = resumir(estadosPlanos());
   const c = d.conteo || r.conteo;
 
@@ -631,10 +675,13 @@ function vistaReporte(){
   return `
   <div class="pila">
     <div class="fila no-print">
-      <button class="btn ghost chico" id="b-volver">Volver a mis diagnósticos</button>
+      <button class="btn ghost chico" id="b-volver">${
+        estado.ajena ? "Volver al taller" : "Volver a mis diagnósticos"}</button>
       <button class="btn chico" id="b-imprimir">Imprimir o guardar PDF</button>
-      ${d.estado === "entregado" ? '<button class="btn ghost chico" id="b-reabrir">Reabrir como borrador</button>' : ""}
+      ${!estado.ajena && d.estado === "entregado"
+        ? '<button class="btn ghost chico" id="b-reabrir">Reabrir como borrador</button>' : ""}
     </div>
+    ${estado.ajena ? `<p class="ajena no-print">Hoja de ${esc(val(p.nombre, p.usuario))}. Solo lectura.</p>` : ""}
     <div id="aviso" hidden></div>
     <div class="hoja">
       <div class="hoja-h">
@@ -670,7 +717,14 @@ function vistaReporte(){
 }
 
 function montarReporte(){
-  $("#b-volver").onclick = async () => { await cargarLista(); estado.vista = "panel"; pintar(); };
+  $("#b-volver").onclick = async () => {
+    if(estado.ajena){
+      estado.ajena = false; estado.autor = estado.perfil; estado.diag = null;
+      estado.vista = "instructor"; pintar(); await cargarTaller();
+      return;
+    }
+    await cargarLista(); estado.vista = "panel"; pintar();
+  };
   $("#b-imprimir").onclick = () => window.print();
   $("#b-reabrir")?.addEventListener("click", async () => {
     estado.diag = { ...estado.diag, estado: "borrador", entregado_en: null };
@@ -678,6 +732,143 @@ function montarReporte(){
     await empujar();
     estado.vista = "editor"; pintar();
   });
+}
+
+/* ================= tablero del día (instructor) ================= */
+// La pregunta de la clase no es "qué se entregó" sino "quién no ha empezado",
+// y esa no se puede contestar con la tabla de diagnósticos: el que no hizo
+// nada no tiene fila. Por eso se pide la lista de estudiantes aparte y las
+// hojas del día se cuelgan de ella. RLS deja al instructor leer los perfiles.
+async function cargarTaller(){
+  if(!estado.taller) estado.taller = { fecha: hoy(), grupo: "", estudiantes: [], hojas: [] };
+  const t = estado.taller;
+  if(!conectado()){
+    t.estudiantes = []; t.hojas = []; pintarTaller();
+    aviso("El tablero del taller necesita conexión. Tus hojas sí están aquí.");
+    return;
+  }
+  const [{ data: gente, error: e1 }, { data: hojas, error: e2 }] = await Promise.all([
+    conCorte(sb.from("perfiles").select("id, usuario, nombre, grupo").eq("rol", "estudiante")),
+    conCorte(sb.from("diagnosticos")
+      .select("id, autor_id, orden, estado, veredicto, conteo, actualizado_en, equipos(serial, marca, modelo)")
+      .eq("fecha", t.fecha))
+  ]);
+  if(e1 || e2){
+    if(esDeRed(e1 || e2)) hayServidor = false;
+    aviso(explicar(e1 || e2)); return;
+  }
+  t.estudiantes = (gente || []).sort((a, b) =>
+    (a.nombre || a.usuario).localeCompare(b.nombre || b.usuario, "es"));
+  t.hojas = hojas || [];
+  aviso("");
+  pintarTaller();
+}
+
+// El número exacto va al lado en texto (24/37); la barra es solo para poder
+// barrer la lista con la vista y ver quién va atrás, así que se esconde de
+// los lectores de pantalla en vez de repetirle el dato a nadie.
+function barraAvance(hechos, total){
+  const pct = total ? Math.round((hechos / total) * 100) : 0;
+  return `<span class="avance" aria-hidden="true"><i style="width:${pct}%"></i></span>`;
+}
+
+// Entregada: qué veredicto le salió. Sin entregar: cuándo la tocó por última
+// vez, que es lo que dice si el estudiante sigue trabajando o se atascó.
+function marcaHoja(h){
+  return h.estado === "entregado"
+    ? `<span class="pill" data-v="${esc(h.veredicto)}">${esc(VEREDICTOS[h.veredicto] || "Entregado")}</span>`
+    : `<span class="cuando">${esc(haceCuanto(h.actualizado_en))}</span>`;
+}
+
+function lineaHoja(h, sangrada){
+  const a = avance(h, PUNTOS.length);
+  const eq = h.equipos;
+  return `
+  <button class="hoja-linea${sangrada ? " sangrada" : ""}" data-ajena="${h.id}">
+    ${barraAvance(a.hechos, a.total)}
+    <span class="quien-hoja">${sangrada ? esc(val(h.orden, "Otra hoja")) : ""}${
+      eq ? `<small>${esc(eq.serial)}</small>` : ""}</span>
+    <span class="cuenta">${a.hechos}/${a.total}</span>
+    ${marcaHoja(h)}
+  </button>`;
+}
+
+function filasTaller(){
+  const t = estado.taller;
+  const filas = armarFilas(t.estudiantes, t.hojas, t.grupo);
+  if(!filas.length) return `<p class="vacio-chico">No hay estudiantes registrados${
+    t.grupo ? " en ese grupo" : ""}.</p>`;
+
+  return filas.map(f => {
+    const e = f.estudiante;
+    const nombre = `<span class="quien-t"><b>${esc(val(e.nombre, e.usuario))}</b>${
+      t.grupo ? "" : `<small>${esc(val(e.grupo, ""))}</small>`}</span>`;
+
+    if(f.tipo === "sin") return `
+      <div class="fila-t sin-empezar">
+        ${barraAvance(0, PUNTOS.length)}${nombre}
+        <span class="cuenta">—</span>
+        <span class="cuando">sin empezar</span>
+      </div>`;
+
+    if(f.tipo === "varias") return `
+      <div class="fila-t varias">
+        ${nombre}
+        <span class="cuando ancho">${f.hojas.length} hojas${
+          f.entregadas ? ` · ${f.entregadas} entregada${f.entregadas === 1 ? "" : "s"}` : ""}</span>
+      </div>` + f.hojas.map(x => lineaHoja(x, true)).join("");
+
+    const h = f.hojas[0], a = avance(h, PUNTOS.length);
+    return `
+      <button class="fila-t" data-ajena="${h.id}">
+        ${barraAvance(a.hechos, a.total)}${nombre}
+        <span class="cuenta">${a.hechos}/${a.total}</span>
+        ${marcaHoja(h)}
+      </button>`;
+  }).join("");
+}
+
+function resumenTaller(){
+  const t = estado.taller;
+  const r = armarResumen(t.estudiantes, t.hojas, t.grupo);
+  if(!r.total) return "";
+  return `${r.empezaron} de ${r.total} empezaron · ${r.entregaron} ${
+    r.entregaron === 1 ? "entregó" : "entregaron"}`;
+}
+
+// Enlaza solo dentro de su contenedor: el tablero y la tabla se repintan por
+// separado, y enlazar sobre todo el documento duplicaría los manejadores.
+function enlazarAjenas(raiz){
+  raiz?.querySelectorAll("[data-ajena]").forEach(b => {
+    b.addEventListener("click", () => abrirAjena(b.dataset.ajena));
+    b.addEventListener("keydown", ev => {
+      if(ev.key === "Enter" || ev.key === " "){ ev.preventDefault(); abrirAjena(b.dataset.ajena); }
+    });
+  });
+}
+
+function pintarTaller(){
+  pintarGrupos();
+  const cuerpo = $("#taller-cuerpo");
+  if(cuerpo){ cuerpo.innerHTML = filasTaller(); enlazarAjenas(cuerpo); }
+  const res = $("#taller-resumen");
+  if(res) res.textContent = resumenTaller();
+}
+
+// La vista se dibuja antes de que lleguen los estudiantes, así que cuando se
+// pintó el <select> todavía no se sabía qué grupos hay. Hay que rellenarlo al
+// llegar los datos, conservando lo que el instructor tuviera escogido.
+function pintarGrupos(){
+  const sel = $("#ta-grupo");
+  if(!sel) return;
+  const grupos = [...new Set((estado.taller?.estudiantes || []).map(e => e.grupo).filter(Boolean))].sort();
+  const actuales = [...sel.options].slice(1).map(o => o.value);
+  if(actuales.join("|") === grupos.join("|")) return;
+  const escogido = estado.taller?.grupo || "";
+  sel.innerHTML = `<option value="">Todos</option>` +
+    grupos.map(g => `<option${g === escogido ? " selected" : ""}>${esc(g)}</option>`).join("");
+  // si el grupo escogido desapareció de la lista, no puede quedar filtrando a ciegas
+  if(escogido && !grupos.includes(escogido)) estado.taller.grupo = "";
 }
 
 /* ================= vista de instructor ================= */
@@ -699,7 +890,7 @@ async function cargarInstructor(){
 function filasInstructor(filas){
   return filas.map(f => {
     const c = f.conteo || {};
-    return `<tr>
+    return `<tr data-ajena="${esc(f.id)}" tabindex="0" role="button">
       <td class="num">${esc(f.fecha)}</td>
       <td>${esc(f.autor_nombre || f.autor_usuario)}</td>
       <td>${esc(f.autor_grupo || "—")}</td>
@@ -713,18 +904,49 @@ function filasInstructor(filas){
 }
 
 function vistaInstructor(){
+  const t = estado.taller || { fecha: hoy(), grupo: "", estudiantes: [], hojas: [] };
+  const esHoy = t.fecha === hoy();
+  const grupos = [...new Set(t.estudiantes.map(e => e.grupo).filter(Boolean))].sort();
+
+  return `
+  <div class="pila">
+    <div class="enc">
+      <div><h1>El taller ${esHoy ? "hoy" : "el " + fechaLarga(t.fecha)}</h1>
+        <p id="taller-resumen">${esc(resumenTaller())}</p></div>
+      <button class="btn ghost" id="b-volver">Mis diagnósticos</button>
+    </div>
+    <div class="conmuta no-print" role="group" aria-label="Qué mirar">
+      <button type="button" id="p-hoy" aria-pressed="true">El día</button>
+      <button type="button" id="p-todo" aria-pressed="false">Buscar en todo</button>
+    </div>
+    <div id="aviso" hidden></div>
+
+    <div id="panel-hoy">
+      <div class="filtros no-print">
+        <label class="f">Día<input type="date" id="ta-fecha" value="${esc(t.fecha)}"></label>
+        <label class="f">Grupo<select id="ta-grupo"><option value="">Todos</option>${
+          grupos.map(g => `<option${t.grupo === g ? " selected" : ""}>${esc(g)}</option>`).join("")}</select></label>
+        <button class="btn ghost chico" id="ta-hoy"${esHoy ? " disabled" : ""}>Hoy</button>
+        <button class="btn ghost chico" id="ta-refrescar">Actualizar</button>
+      </div>
+      <div class="taller" id="taller-cuerpo">${filasTaller()}</div>
+    </div>
+
+    <div id="panel-todo" hidden>
+      ${vistaTablaTaller()}
+    </div>
+  </div>`;
+}
+
+// La tabla de siempre: sirve para buscar por serial o mirar otras fechas,
+// que es justo lo que el tablero del día no hace.
+function vistaTablaTaller(){
   const filas = (estado.todo || []);
   const grupos = [...new Set(filas.map(f => f.autor_grupo).filter(Boolean))].sort();
   const cuerpo = filasInstructor(filas);
 
   return `
-  <div class="pila">
-    <div class="enc">
-      <div><h1>Todo el taller</h1>
-        <p>${filas.length} diagnósticos registrados</p></div>
-      <button class="btn ghost" id="b-volver">Mis diagnósticos</button>
-    </div>
-    <div id="aviso" hidden></div>
+    <p class="pista">${filas.length} diagnósticos registrados</p>
     <div class="filtros no-print">
       <label class="f">Grupo<select id="fi-grupo"><option value="">Todos</option>${
         grupos.map(g => `<option>${esc(g)}</option>`).join("")}</select></label>
@@ -741,12 +963,52 @@ function vistaInstructor(){
         <th>Fecha</th><th>Estudiante</th><th>Grupo</th><th>Serial</th>
         <th>Equipo</th><th>Veredicto</th><th>B/O/F</th>
       </tr></thead><tbody id="tb">${cuerpo}</tbody></table>
-    </div>
-  </div>`;
+    </div>`;
 }
 
 function montarInstructor(){
-  $("#b-volver").onclick = () => { estado.vista = "panel"; pintar(); };
+  $("#b-volver").onclick = () => {
+    clearInterval(estado.latido); estado.latido = null;
+    estado.vista = "panel"; pintar();
+  };
+
+  /* ---- pestañas ---- */
+  const verPestana = p => {
+    estado.pestana = p;
+    $("#p-hoy").setAttribute("aria-pressed", p === "hoy");
+    $("#p-todo").setAttribute("aria-pressed", p === "todo");
+    $("#panel-hoy").hidden  = p !== "hoy";
+    $("#panel-todo").hidden = p !== "todo";
+    aviso("");
+    if(p === "todo" && !(estado.todo || []).length) cargarInstructor();
+  };
+  $("#p-hoy").onclick  = () => verPestana("hoy");
+  $("#p-todo").onclick = () => verPestana("todo");
+  if(estado.pestana === "todo") verPestana("todo");
+
+  /* ---- el día ---- */
+  $("#ta-fecha").addEventListener("change", () => {
+    estado.taller.fecha = $("#ta-fecha").value || hoy();
+    estado.vista = "instructor"; pintar(); cargarTaller();
+  });
+  $("#ta-grupo").addEventListener("input", () => {
+    estado.taller.grupo = $("#ta-grupo").value; pintarTaller();
+  });
+  $("#ta-hoy").addEventListener("click", () => {
+    estado.taller.fecha = hoy(); estado.vista = "instructor"; pintar(); cargarTaller();
+  });
+  $("#ta-refrescar").addEventListener("click", () => cargarTaller());
+
+  // Mientras el tablero esté abierto se refresca solo: el instructor lo deja
+  // puesto y camina por el taller. Solo el cuerpo, para no perderle el sitio.
+  clearInterval(estado.latido);
+  estado.latido = setInterval(() => {
+    if(estado.vista === "instructor" && estado.pestana !== "todo") cargarTaller();
+  }, 30000);
+
+  pintarTaller();
+
+  /* ---- buscar en todo ---- */
   const filtrar = () => {
     const g = $("#fi-grupo").value, v = $("#fi-vered").value,
           e = $("#fi-estado").value, t = $("#fi-texto").value.toLowerCase();
@@ -757,9 +1019,11 @@ function montarInstructor(){
       (!t || `${f.equipo_serial} ${f.autor_nombre} ${f.autor_usuario} ${f.equipo_marca} ${f.equipo_modelo}`
               .toLowerCase().includes(t)));
     $("#tb").innerHTML = filasInstructor(vis);
+    enlazarAjenas($("#tb"));
   };
   ["fi-grupo","fi-vered","fi-estado","fi-texto"].forEach(id =>
     $("#" + id).addEventListener("input", filtrar));
+  enlazarAjenas($("#tb"));
 }
 
 // Al salir se borra lo guardado en este equipo: las máquinas del taller se

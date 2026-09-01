@@ -57,15 +57,17 @@ a{color:var(--accent)}
 .barra{position:sticky;top:0;z-index:20;background:var(--surface);border-bottom:1px solid var(--rule)}
 .barra-in{max-width:900px;margin:0 auto;padding:.6rem 1rem;display:flex;align-items:center;gap:.75rem}
 .marca{display:flex;flex-direction:column;margin-right:auto;min-width:0}
-.marca strong{font-family:var(--f-display);font-weight:700;font-size:.98rem;letter-spacing:-.015em}
+.marca strong{font-family:var(--f-display);font-weight:700;font-size:.98rem;letter-spacing:-.015em;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .marca span{font-family:var(--f-mono);font-size:.62rem;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-3);
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .conexion{font-family:var(--f-display);font-size:.62rem;font-weight:600;letter-spacing:.06em;
   text-transform:uppercase;color:var(--obs);background:var(--obs-bg);
   padding:.2rem .5rem;border-radius:999px;white-space:nowrap}
 .conexion[data-off="1"]{color:var(--ink-2);background:var(--surface-2)}
-.quien{font-family:var(--f-mono);font-size:.7rem;color:var(--ink-3);text-align:right;line-height:1.4}
-.quien b{display:block;color:var(--ink-2);font-size:.78rem}
+.quien{font-family:var(--f-mono);font-size:.7rem;color:var(--ink-3);text-align:right;line-height:1.4;
+  min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.quien b{display:block;color:var(--ink-2);font-size:.78rem;overflow:hidden;text-overflow:ellipsis}
 
 main{max-width:900px;margin:0 auto;padding:1.5rem 1rem 5rem}
 .pila{display:flex;flex-direction:column;gap:1.25rem}
@@ -174,6 +176,52 @@ input::placeholder,textarea::placeholder{color:var(--ink-3);opacity:.7}
 .vered[data-v="no"]{border-color:var(--bad);background:var(--bad-bg);color:var(--bad)}
 .progreso{font-family:var(--f-mono);font-size:.72rem;color:var(--ink-3);font-variant-numeric:tabular-nums}
 .guardado{font-family:var(--f-display);font-size:.72rem;color:var(--ink-3);min-width:6rem;text-align:right}
+
+/* ---------------- tablero del día (instructor) ---------------- */
+.taller{display:flex;flex-direction:column;gap:2px;margin-top:.75rem}
+.fila-t,.hoja-linea{display:flex;align-items:center;gap:.7rem;width:100%;text-align:left;
+  padding:.6rem .75rem;border:1px solid var(--rule-soft);border-radius:10px;
+  background:var(--surface);color:inherit;font:inherit;cursor:pointer}
+.fila-t:hover,.hoja-linea:hover{border-color:var(--accent);background:var(--raise)}
+div.fila-t{cursor:default}
+div.fila-t:hover{border-color:var(--rule-soft);background:var(--surface)}
+.fila-t.sin-empezar{opacity:.62;border-style:dashed}
+.hoja-linea.sangrada{margin-left:1.6rem;background:transparent;border-style:dashed}
+
+/* Ojo: .barra ya es la barra de navegación de arriba. Esto es otra cosa. */
+.avance{flex:none;display:block;width:56px;height:8px;border-radius:99px;
+  background:var(--rule-soft);overflow:hidden;box-shadow:inset 0 0 0 1px var(--rule-soft)}
+.avance i{display:block;height:100%;border-radius:99px;background:var(--accent)}
+.sin-empezar .avance{background:transparent}
+
+.quien-t{display:flex;flex-direction:column;min-width:0;margin-right:auto}
+.quien-t b{font-family:var(--f-display);font-size:.9rem;font-weight:600;letter-spacing:-.01em;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.quien-t small,.quien-hoja small{font-family:var(--f-mono);font-size:.66rem;color:var(--ink-3)}
+.quien-hoja{display:flex;flex-direction:column;min-width:0;margin-right:auto;
+  font-family:var(--f-mono);font-size:.72rem;color:var(--ink-2)}
+.cuenta{font-family:var(--f-mono);font-size:.76rem;color:var(--ink-2);flex:none;
+  min-width:3.4rem;text-align:right}
+.cuando{font-family:var(--f-display);font-size:.68rem;color:var(--ink-3);flex:none;
+  min-width:5.5rem;text-align:right}
+.cuando.ancho{min-width:auto;font-family:var(--f-mono);font-size:.7rem;color:var(--ink-2)}
+.fila-t.varias{background:var(--surface-2);border-color:var(--rule)}
+.vacio-chico{color:var(--ink-3);padding:1.25rem .25rem;text-align:center}
+
+/* Leyendo la hoja de otro: que no quede duda de que no se toca. */
+.ajena{font-family:var(--f-display);font-size:.72rem;color:var(--obs);
+  background:var(--obs-bg);padding:.4rem .7rem;border-radius:8px;margin:.5rem 0}
+
+.datos tr[data-ajena]{cursor:pointer}
+.datos tr[data-ajena]:hover td{background:var(--surface-2)}
+
+@media (max-width:520px){
+  .fila-t,.hoja-linea{gap:.5rem;padding:.55rem .6rem}
+  .avance{width:44px}
+  .cuando{min-width:4.6rem;font-size:.62rem}
+  .cuenta{min-width:2.9rem;font-size:.7rem}
+  .hoja-linea.sangrada{margin-left:.9rem}
+}
 
 /* ---------------- reporte ---------------- */
 .hoja{background:var(--raise);border:1px solid var(--rule);box-shadow:var(--shadow);

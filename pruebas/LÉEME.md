@@ -19,7 +19,10 @@ Tres cosas se prueban por separado:
   mentira: que lo guardado sin señal sobreviva, que suba en el orden correcto
   (el equipo antes que el diagnóstico, porque este necesita el id de aquel),
   que lo bajado del servidor no pise lo que aquí todavía no ha subido, y que
-  a Supabase no le lleguen los campos internos.
+  a Supabase no le lleguen los campos internos. También `docs/taller.js`, que
+  arma el tablero del instructor: que el que no empezó tenga fila igual, que
+  las hojas se cuelguen del estudiante correcto, que el resumen cuente
+  estudiantes y no hojas, y que el orden no baile cuando se refresca solo.
 - **El casco de la app** — que el service worker guarde copia de todo y que
   la app abra con la red cortada de verdad.
 - **El wifi de la escuela** — conectado y sin salida a internet, que es el
@@ -43,6 +46,8 @@ con una cuenta de prueba borrada después:
 | Los 3 puntos anotados sin señal | `puntos_crear` | con grupo y título |
 | Editar sin señal una hoja que Supabase ya tenía | `diag_editar` (upsert como update) | el cambio sobreescribe |
 | Borrar sin señal | `diag_borrar` | la hoja y sus puntos desaparecen |
+| El tablero del instructor | `perfiles_leer` para instructores | lista a los 5 estudiantes, con y sin hojas |
+| Abrir la hoja de un estudiante | `diag_leer` / `puntos_leer` | de solo lectura, firmada por el estudiante |
 
 Las subidas salieron solas, sin tocar nada, en el reintento de la propia app
 (~20 s del corte de 30 s), porque desbloquear la red no dispara el evento

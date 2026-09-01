@@ -8,7 +8,7 @@ Tres piezas que hacen una sola cosa: que lo que los estudiantes diagnostican tod
 días se acumule en un lugar consultable.
 
 ```
-docs/      Lo que abren los estudiantes del teléfono. HTML plano + Supabase.
+docs/      Lo que abren estudiantes e instructor del teléfono. HTML plano + Supabase.
            Se llama docs/ porque es la carpeta que GitHub Pages publica.
 supabase/  El esquema de la base de datos, con Row Level Security.
 sync/      Baja lo entregado y lo escribe como notas en el vault.
@@ -109,6 +109,39 @@ Abre `vault/` como vault en Obsidian e instala **Dataview** (las tablas de
 - **No sincroniza de vuelta.** El vault es de solo lectura respecto a la base de
   datos: lo que edites en `04-Diagnosticos` se pierde en la próxima corrida. Tus
   notas van en `02-Equipos` y `03-Estudiantes`, que el script nunca sobreescribe.
+
+## La vista del instructor
+
+El instructor tiene un botón de más en su panel, porque su perfil tiene
+`rol = 'instructor'`. Abre dos cosas:
+
+**El día.** Un renglón por **estudiante**, no por diagnóstico — y esa es toda
+la diferencia. La tabla de diagnósticos no puede contestar la pregunta que se
+hace en clase, que no es "qué se entregó" sino "quién no ha empezado": el que
+no hizo nada no tiene diagnóstico y por tanto no tiene fila. Aquí sí sale, con
+la barra vacía. De cada quien se ve cuánto lleva del protocolo, si entregó y
+con qué veredicto, y cuánto hace que no toca la hoja — que es lo que distingue
+al que va lento del que se atascó. Se filtra por grupo, se puede mirar otro
+día, y se refresca solo cada 30 segundos para poder dejarlo puesto mientras se
+camina por el taller.
+
+Un estudiante con más de una hoja el mismo día no se resume en un solo
+número: la fila pasa a ser encabezado y sus hojas se listan debajo. Enseñar la
+última tocada escondería que ya entregó otra.
+
+**Buscar en todo.** La tabla de siempre, para buscar por serial o mirar otras
+fechas. Sus filas también abren la hoja.
+
+Tocar cualquier renglón abre la hoja del estudiante **de solo lectura**. Esto
+importa más de lo que parece: RLS le deja al instructor *editar* las hojas de
+sus estudiantes, no solo leerlas, y el editor tiene autoguardado. Si abrir
+para mirar llevara al editor, un toque podría pisarle el trabajo a alguien que
+lo está escribiendo en ese momento. Por eso se abre siempre el reporte, sin
+botón de reabrir, y la firma sigue siendo la del estudiante y no la de quien
+mira.
+
+El tablero necesita conexión: el trabajo de los demás nunca se guarda en el
+equipo del instructor, porque no es suyo.
 
 ## El taller sin señal
 

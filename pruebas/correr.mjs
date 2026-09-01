@@ -56,7 +56,9 @@ await dormir(3500);   // que el service worker instale y guarde el casco
 
 const sw = await evaluar(`(async () => {
   const rs = await navigator.serviceWorker.getRegistrations();
-  const c = await caches.open("bitacora-v1");
+  // por nombre y no por versión: subir VERSION en sw.js no puede romper la prueba
+  const nombre = (await caches.keys()).find(n => n.startsWith("bitacora-"));
+  const c = await caches.open(nombre || "bitacora-");
   const k = await c.keys();
   return { registrado: rs.length > 0, guardados: k.map(r => new URL(r.url).pathname + "|" + new URL(r.url).host) };
 })()`);
@@ -170,7 +172,9 @@ await ev("Network.setBlockedURLs", { urls:[] });
 /* ============ 4. Supabase nunca se guarda en cache ============ */
 cabecera("Los datos de estudiantes no se cachean");
 const cache = await evaluar(`(async () => {
-  const c = await caches.open("bitacora-v1");
+  // por nombre y no por versión: subir VERSION en sw.js no puede romper la prueba
+  const nombre = (await caches.keys()).find(n => n.startsWith("bitacora-"));
+  const c = await caches.open(nombre || "bitacora-");
   return (await c.keys()).filter(r => r.url.includes("supabase.co")).length;
 })()`);
 dice(cache === 0, "no hay ni una respuesta de supabase.co en el cache");

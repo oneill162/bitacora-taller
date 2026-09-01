@@ -1,4 +1,5 @@
 import * as local from "./local.js";
+import * as taller from "./taller.js";
 
 /* Supabase de mentira: anota lo que le piden y contesta lo que se le diga. */
 function falso({ caer = false } = {}){
@@ -177,6 +178,91 @@ prueba("el perfil sobrevive para poder abrir la app sin señal", async () => {
   igual((await local.leerMeta("perfil")).usuario, "mcolon", "se recuerda quién entró");
   await local.olvidarTodo();
   igual(await local.leerMeta("perfil"), null, "y al salir no queda rastro en el equipo compartido");
+});
+
+/* ============ el tablero del día del instructor ============ */
+const ESTUDIANTES = [
+  { id:"e1", usuario:"lrivera", nombre:"Luis Rivera", grupo:"4-B" },
+  { id:"e2", usuario:"mcolon",  nombre:"María Colón", grupo:"4-B" },
+  { id:"e3", usuario:"psoto",   nombre:"Pedro Soto",  grupo:"4-B" },
+  { id:"e4", usuario:"rvega",   nombre:"Rosa Vega",   grupo:"3-A" }
+];
+const hoja = (id, autor, sin, extra = {}) =>
+  ({ id, autor_id: autor, estado:"borrador", veredicto:"", conteo:{ sin }, ...extra });
+
+prueba("el que no empezó también sale, que es por quien se pregunta", async () => {
+  const filas = taller.filasTaller(ESTUDIANTES, [hoja("h1","e1",0)]);
+  igual(filas.length, 4, "una fila por estudiante, no por hoja");
+  const soto = filas.find(f => f.estudiante.id === "e3");
+  igual(soto.tipo, "sin", "Pedro Soto no empezó y aun así tiene fila");
+  igual(soto.hojas, [], "sin hojas colgando");
+});
+
+prueba("las hojas se cuelgan del estudiante que las hizo", async () => {
+  const filas = taller.filasTaller(ESTUDIANTES,
+    [hoja("h1","e1",0), hoja("h2","e2",13), hoja("h3","e2",20)]);
+  igual(filas.find(f => f.estudiante.id === "e1").hojas.map(h => h.id), ["h1"], "la de Rivera");
+  igual(filas.find(f => f.estudiante.id === "e2").hojas.map(h => h.id).sort(), ["h2","h3"],
+        "las dos de Colón, y ninguna ajena");
+  igual(filas.find(f => f.estudiante.id === "e4").hojas, [], "Vega no tiene");
+});
+
+prueba("con varias hojas la fila no finge ser una sola", async () => {
+  // el fallo que hubo: enseñar la última tocada escondía que ya había entregado otra
+  const filas = taller.filasTaller(ESTUDIANTES, [
+    hoja("vieja","e1",0,{ estado:"entregado", veredicto:"apto", actualizado_en:"2026-09-01T13:00:00Z" }),
+    hoja("nueva","e1",4,{ actualizado_en:"2026-09-01T15:00:00Z" })
+  ]);
+  const r = filas.find(f => f.estudiante.id === "e1");
+  igual(r.tipo, "varias", "la fila pasa a ser encabezado");
+  igual(r.entregadas, 1, "y dice cuántas entregó");
+  igual(r.hojas.map(h => h.id), ["nueva","vieja"], "las hojas van de más nueva a más vieja");
+});
+
+prueba("el resumen cuenta sobre los estudiantes, no sobre las hojas", async () => {
+  const hojas = [hoja("h1","e1",0,{ estado:"entregado" }), hoja("h2","e1",4), hoja("h3","e2",13)];
+  igual(taller.resumenTaller(ESTUDIANTES, hojas),
+        { total:4, empezaron:2, entregaron:1 },
+        "dos hojas de Rivera cuentan como un estudiante, no como dos");
+  igual(taller.resumenTaller(ESTUDIANTES, hojas, "3-A"),
+        { total:1, empezaron:0, entregaron:0 },
+        "y filtrando por grupo se recalcula sobre ese grupo");
+});
+
+prueba("el filtro de grupo no se lleva a nadie por delante", async () => {
+  igual(taller.filasTaller(ESTUDIANTES, [], "3-A").map(f => f.estudiante.usuario), ["rvega"],
+        "solo los del grupo");
+  igual(taller.filasTaller(ESTUDIANTES, [], "").length, 4, "sin filtro, todos");
+  igual(taller.filasTaller(ESTUDIANTES, [], "no-existe").length, 0, "un grupo que no existe no inventa filas");
+});
+
+prueba("las filas salen en orden estable, para que no bailen al refrescarse", async () => {
+  // el tablero se repinta solo cada 30 s: si el orden dependiera de la
+  // actividad, las filas saltarían mientras el instructor las está mirando
+  const a = taller.filasTaller(ESTUDIANTES, [hoja("h1","e3",0,{ actualizado_en:"2026-09-01T20:00:00Z" })]);
+  const b = taller.filasTaller(ESTUDIANTES, [hoja("h1","e1",0,{ actualizado_en:"2026-09-01T21:00:00Z" })]);
+  igual(a.map(f => f.estudiante.usuario), b.map(f => f.estudiante.usuario),
+        "el orden no depende de quién tocó su hoja de último");
+  igual(a.map(f => f.estudiante.nombre), ["Luis Rivera","María Colón","Pedro Soto","Rosa Vega"],
+        "van por nombre, y María va después de Luis aunque lleve tilde");
+});
+
+prueba("el avance sale del conteo, y aguanta una hoja recién creada", async () => {
+  igual(taller.avance({ conteo:{ sin:13 } }, 37), { hechos:24, total:37 }, "37 menos los 13 sin evaluar");
+  igual(taller.avance({ conteo:{} }, 37),        { hechos:0,  total:37 }, "sin conteo, cero: no se inventa avance");
+  igual(taller.avance(null, 37),                 { hechos:0,  total:37 }, "sin hoja tampoco");
+  igual(taller.avance({ conteo:{ sin:0 } }, 37), { hechos:37, total:37 }, "completa");
+  igual(taller.avance({ conteo:{ sin:99 } }, 37),{ hechos:0,  total:37 }, "un conteo imposible no da negativo");
+});
+
+prueba("se ve cuánto lleva quieta una hoja", async () => {
+  const ahora = new Date("2026-09-01T15:00:00Z").getTime();
+  const hace = min => taller.haceCuanto(new Date(ahora - min*60000).toISOString(), ahora);
+  igual(hace(0), "ahora", "recién tocada");
+  igual(hace(25), "hace 25 min", "el caso que importa: lleva rato parada");
+  igual(hace(90), "hace 1 h", "más de una hora");
+  igual(hace(60*30), "hace 1 d", "de otro día");
+  igual(taller.haceCuanto(null), "", "sin fecha no se inventa nada");
 });
 
 /* ---------------------------------------------------------------- */
