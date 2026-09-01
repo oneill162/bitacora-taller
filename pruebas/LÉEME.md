@@ -23,6 +23,8 @@ Tres cosas se prueban por separado:
   arma el tablero del instructor: que el que no empezó tenga fila igual, que
   las hojas se cuelguen del estudiante correcto, que el resumen cuente
   estudiantes y no hojas, y que el orden no baile cuando se refresca solo.
+  Y `docs/informes.js`: las sumas de cada informe, el inventario, qué le falta
+  a una hoja y los cuatro tipos de duplicado.
 - **El casco de la app** — que el service worker guarde copia de todo y que
   la app abra con la red cortada de verdad.
 - **El wifi de la escuela** — conectado y sin salida a internet, que es el
@@ -48,6 +50,10 @@ con una cuenta de prueba borrada después:
 | Borrar sin señal | `diag_borrar` | la hoja y sus puntos desaparecen |
 | El tablero del instructor | `perfiles_leer` para instructores | lista a los 5 estudiantes, con y sin hojas |
 | Abrir la hoja de un estudiante | `diag_leer` / `puntos_leer` | de solo lectura, firmada por el estudiante |
+| Informes, inventario y duplicados | `perfiles_leer`, `equipos_leer` | los 4 duplicados sembrados, detectados |
+| Unificar equipos | `diag_editar` + `equipos_borrar` | 9 equipos → 7, **0 hojas huérfanas**, ninguna hoja perdida |
+| Unificar estudiantes | `diag_editar` sobre `autor_id` | el trabajo pasa entero a una cuenta |
+| El QR | — | decodificado con `zbarimg`: lleva el enlace y el código correctos |
 
 Las subidas salieron solas, sin tocar nada, en el reintento de la propia app
 (~20 s del corte de 30 s), porque desbloquear la red no dispara el evento

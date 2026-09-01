@@ -1,5 +1,6 @@
 import * as local from "./local.js";
 import * as taller from "./taller.js";
+import * as inf from "./informes.js";
 
 /* Supabase de mentira: anota lo que le piden y contesta lo que se le diga. */
 function falso({ caer = false } = {}){
@@ -263,6 +264,159 @@ prueba("se ve cuánto lleva quieta una hoja", async () => {
   igual(hace(90), "hace 1 h", "más de una hora");
   igual(hace(60*30), "hace 1 d", "de otro día");
   igual(taller.haceCuanto(null), "", "sin fecha no se inventa nada");
+});
+
+/* ============ informes, inventario y duplicados ============ */
+const EQ = [
+  { id:"q1", serial:"ABC1234",  marca:"Dell", modelo:"3080", inventario:"INV-01", ubicacion:"Salón 204" },
+  { id:"q2", serial:"abc-1234", marca:"Dell", modelo:"3080", inventario:"",       ubicacion:"Salón 204" },
+  { id:"q3", serial:"XYZ9",     marca:"HP",   modelo:"400",  inventario:"INV-01", ubicacion:"Salón 110" },
+  { id:"q4", serial:"KKK7",     marca:"HP",   modelo:"400",  inventario:"INV-09", ubicacion:"" }
+];
+const GENTE = [
+  { id:"e1", usuario:"lrivera",    nombre:"Luis Rivera", grupo:"4-B" },
+  { id:"e2", usuario:"luis.rivera",nombre:"Luis  Rivera",grupo:"4-B" },
+  { id:"e3", usuario:"mcolon",     nombre:"María Colón", grupo:"4-B" },
+  { id:"e4", usuario:"rvega",      nombre:"Rosa Vega",   grupo:"3-A" }
+];
+const D = (id, autor, equipo, fecha, estado, conteo, extra = {}) =>
+  ({ id, autor_id:autor, equipo_id:equipo, fecha, estado, veredicto:"", conteo,
+     orden:"DX-"+id, sistema:"Win 11", hallazgos:"algo", ...extra });
+const HOJAS = [
+  D("h1","e1","q1","2026-09-01","entregado",{ok:37,obs:0,falla:0,na:0,sin:0},{veredicto:"apto"}),
+  D("h2","e1","q3","2026-09-01","borrador", {ok:10,obs:0,falla:2,na:0,sin:25}),
+  D("h3","e3","q1","2026-09-01","entregado",{ok:30,obs:2,falla:5,na:0,sin:0},{veredicto:"no"}),
+  D("h4","e2","q4","2026-08-30","entregado",{ok:20,obs:0,falla:0,na:0,sin:17},{veredicto:"apto"})
+];
+
+prueba("el informe por estudiante no deja fuera al que no trabajó", async () => {
+  const f = inf.porEstudiante(GENTE, HOJAS, 37, {});
+  igual(f.length, 4, "los cuatro salen, trabajen o no");
+  const vega = f.find(x => x.usuario === "rvega");
+  igual([vega.hojas, vega.entregadas, vega.puntos], [0,0,0], "Rosa Vega en cero, pero presente");
+  const rivera = f.find(x => x.usuario === "lrivera");
+  igual([rivera.hojas, rivera.entregadas, rivera.borradores], [2,1,1], "Rivera: dos hojas, una entregada");
+  igual(rivera.puntos, 37 + 12, "los puntos evaluados se suman entre sus hojas");
+  igual(rivera.fallas, 2, "y las fallas que halló");
+  igual(f[0].hojas >= f[f.length-1].hojas, true, "ordenado de más trabajo a menos");
+});
+
+prueba("el informe por grupo cuenta quién trabajó de cuántos", async () => {
+  const g = inf.porGrupo(GENTE, HOJAS, 37);
+  const b4 = g.find(x => x.grupo === "4-B");
+  igual([b4.estudiantes, b4.activos], [3,3], "los 3 del grupo tienen trabajo");
+  igual(b4.hojas, 4, "las cuatro hojas del grupo");
+  igual(b4.entregadas, 3, "tres entregadas; la de Rivera sigue en borrador");
+  igual(b4.noAptos, 1, "una entrega salió no apta");
+  const a3 = g.find(x => x.grupo === "3-A");
+  igual([a3.estudiantes, a3.activos, a3.hojas], [1,0,0], "el grupo sin trabajo también sale");
+});
+
+prueba("el informe por salón va por dónde está la máquina", async () => {
+  const s = inf.porSalon(EQ, HOJAS, 37);
+  const s204 = s.find(x => x.salon === "Salón 204");
+  igual(s204.equipos, 2, "dos máquinas en el 204");
+  igual(s204.diagnosticados, 1, "solo una ha sido revisada");
+  igual(s204.noAptos, 1, "y su última entrega la dejó no apta");
+  const sinUb = s.find(x => x.salon === "Sin ubicación");
+  igual(sinUb.equipos, 1, "los equipos sin salón no se pierden, se agrupan aparte");
+});
+
+prueba("el veredicto del salón es el de la última entrega, no el de cualquiera", async () => {
+  const hojas = [
+    D("v1","e1","q1","2026-08-01","entregado",{sin:0},{veredicto:"no"}),
+    D("v2","e1","q1","2026-09-01","entregado",{sin:0},{veredicto:"apto"}),
+    D("v3","e1","q1","2026-09-02","borrador", {sin:20})
+  ];
+  const s = inf.porSalon([EQ[0]], hojas, 37).find(x => x.salon === "Salón 204");
+  igual([s.equiposAptos, s.equiposNoAptos], [1,0],
+        "vale la del 1 de septiembre, ya arreglada; el borrador no cuenta");
+  igual(s.noAptos, 1, "y el conteo de HOJAS no aptas es otra cosa, con su propio nombre");
+});
+
+prueba("el inventario se arma solo con lo que escribieron los estudiantes", async () => {
+  const inv = inf.inventario(EQ, HOJAS, Object.fromEntries(GENTE.map(g => [g.id, g])));
+  igual(inv.length, 4, "una fila por equipo conocido");
+  const abc = inv.find(x => x.serial === "ABC1234");
+  igual(abc.revisiones, 2, "cuenta sus revisiones");
+  igual(abc.ultimoTecnico, "Luis Rivera", "con quién lo revisó de último");
+  igual(inv.find(x => x.serial === "KKK7").ubicacion, "Sin ubicación", "sin salón no queda en blanco");
+});
+
+prueba("con dos hojas el mismo día, el último veredicto se desempata por la hora", async () => {
+  // este es justo el caso que la pestaña Revisar marca como duplicado: sin
+  // desempate, el veredicto del inventario salía a suertes
+  const gente = Object.fromEntries(GENTE.map(g => [g.id, g]));
+  const mismas = [
+    D("m1","e1","q1","2026-09-01","entregado",{sin:0},{veredicto:"apto", actualizado_en:"2026-09-01T13:00:00Z"}),
+    D("m2","e3","q1","2026-09-01","entregado",{sin:0},{veredicto:"no",   actualizado_en:"2026-09-01T16:00:00Z"})
+  ];
+  igual(inf.inventario([EQ[0]], mismas, gente)[0].ultimoVeredicto, "no", "manda la de las 16:00");
+  igual(inf.inventario([EQ[0]], mismas.slice().reverse(), gente)[0].ultimoVeredicto, "no",
+        "y no depende del orden en que lleguen de la base");
+});
+
+prueba("detecta la misma máquina con el serial escrito distinto", async () => {
+  const d = inf.duplicados(EQ, HOJAS, GENTE, {});
+  igual(d.serial.length, 1, "un solo caso");
+  igual(d.serial[0].equipos.map(e => e.serial).sort(), ["ABC1234","abc-1234"], "los dos seriales");
+  igual(d.serial[0].clave, "ABC1234", "comparados sin guiones ni mayúsculas");
+});
+
+prueba("al unificar se queda el registro que menos se pierde", async () => {
+  const lleno  = { serial:"ABC1234",  inventario:"INV-1", marca:"Dell", modelo:"3080", tipo:"Torre", ubicacion:"204" };
+  const pobre  = { serial:"abc-1234", inventario:"",      marca:"Dell", modelo:"3080", tipo:"Torre", ubicacion:"204" };
+  const vacio  = { serial:"ABC 1234", inventario:"",      marca:"",     modelo:"",     tipo:"",      ubicacion:"" };
+
+  igual(inf.elegirSuperviviente([pobre, lleno], [5, 0]), 0, "primero manda el historial: menos hojas que mover");
+  igual(inf.elegirSuperviviente([pobre, lleno], [1, 1]), 1,
+        "a igualdad, el que tiene número de inventario: borrarlo perdería ese dato");
+  igual(inf.elegirSuperviviente([vacio, pobre, lleno], [0, 0, 0]), 2, "el más completo de los tres");
+  igual(inf.elegirSuperviviente([{serial:"A-1", marca:"X"}, {serial:"A1", marca:"X"}], [0, 0]), 1,
+        "a igualdad de todo, el serial escrito en limpio y no el que lleva guion");
+});
+
+prueba("detecta números de inventario repetidos en máquinas distintas", async () => {
+  const d = inf.duplicados(EQ, HOJAS, GENTE, {});
+  igual(d.inventario.length, 1, "un caso");
+  igual(d.inventario[0].equipos.map(e => e.serial).sort(), ["ABC1234","XYZ9"], "dos máquinas, un número");
+  cierto(!d.inventario.some(g => g.clave === ""), "los equipos sin número de inventario no cuentan como repetidos");
+});
+
+prueba("detecta el mismo equipo revisado dos veces el mismo día", async () => {
+  const d = inf.duplicados(EQ, HOJAS, GENTE, Object.fromEntries(GENTE.map(g => [g.id, g])));
+  igual(d.hojas.length, 1, "un caso");
+  igual(d.hojas[0].equipo_id, "q1", "el equipo repetido");
+  igual(d.hojas[0].fecha, "2026-09-01", "ese día");
+  igual(d.hojas[0].autores.sort(), ["Luis Rivera","María Colón"], "y quiénes lo hicieron sin saberlo");
+});
+
+prueba("detecta a la misma persona con dos cuentas", async () => {
+  const d = inf.duplicados(EQ, HOJAS, GENTE, {});
+  igual(d.estudiantes.length, 1, "un caso");
+  igual(d.estudiantes[0].estudiantes.map(e => e.usuario).sort(), ["lrivera","luis.rivera"],
+        "las dos cuentas de Luis Rivera, aunque una lleve doble espacio");
+  cierto(!d.estudiantes.some(g => g.estudiantes.some(e => e.usuario === "mcolon")),
+         "y no confunde a María Colón con nadie");
+});
+
+prueba("sin duplicados no inventa ninguno", async () => {
+  const limpio = [{ id:"z1", serial:"AAA1", inventario:"I1" }, { id:"z2", serial:"BBB2", inventario:"I2" }];
+  const d = inf.duplicados(limpio, [], [GENTE[2], GENTE[3]], {});
+  igual(inf.hayDuplicados(d), 0, "nada que revisar");
+});
+
+prueba("dice qué le falta a una hoja, empezando por lo que más duele", async () => {
+  const falta = inf.faltantes({ conteo:{sin:5}, sistema:"", hallazgos:"", orden:"" },
+                              { serial:"", marca:"", modelo:"" }, 37);
+  igual(falta[0], "el serial del equipo", "el serial primero: sin él la hoja no entra al inventario");
+  cierto(falta.includes("5 puntos sin evaluar"), "y cuántos puntos quedan");
+  cierto(falta.includes("marca o modelo"), "y los datos del equipo");
+  igual(inf.faltantes({ conteo:{sin:0}, sistema:"Win 11", hallazgos:"ok", orden:"DX-1" },
+                      { serial:"A1", marca:"Dell", modelo:"X" }, 37), [],
+        "una hoja completa no tiene nada que reclamar");
+  igual(inf.faltantes({ conteo:{} }, null, 37).includes("37 puntos sin evaluar"), true,
+        "una hoja recién creada está entera por hacer");
 });
 
 /* ---------------------------------------------------------------- */

@@ -110,10 +110,25 @@ Abre `vault/` como vault en Obsidian e instala **Dataview** (las tablas de
   datos: lo que edites en `04-Diagnosticos` se pierde en la próxima corrida. Tus
   notas van en `02-Equipos` y `03-Estudiantes`, que el script nunca sobreescribe.
 
+## Repartir el acceso: el código QR
+
+En el panel del instructor, **Código para entrar** arma un cartel con un QR
+para pegar en la plataforma de los estudiantes o proyectar en clase. Se puede
+descargar como PNG o imprimir.
+
+El QR se dibuja en el navegador, no es un archivo guardado en el repo: lleva
+siempre la dirección desde donde se abrió la app y el código de clase que esté
+puesto hoy, así que cambiarlo cada semestre no obliga a regenerar nada.
+
+Por omisión el enlace incluye el código (`?codigo=TALLER-2026`). El estudiante
+escanea y la app le abre directo en *Crear cuenta* con el campo ya lleno: solo
+pone su nombre, grupo y contraseña. Se puede quitar con el interruptor si el
+enlace va a un sitio abierto, y entonces habrá que dictarles el código aparte.
+
 ## La vista del instructor
 
-El instructor tiene un botón de más en su panel, porque su perfil tiene
-`rol = 'instructor'`. Abre dos cosas:
+El instructor tiene dos botones de más en su panel, porque su perfil tiene
+`rol = 'instructor'`. El taller abre en cuatro pestañas:
 
 **El día.** Un renglón por **estudiante**, no por diagnóstico — y esa es toda
 la diferencia. La tabla de diagnósticos no puede contestar la pregunta que se
@@ -129,8 +144,37 @@ Un estudiante con más de una hoja el mismo día no se resume en un solo
 número: la fila pasa a ser encabezado y sus hojas se listan debajo. Enseñar la
 última tocada escondería que ya entregó otra.
 
-**Buscar en todo.** La tabla de siempre, para buscar por serial o mirar otras
-fechas. Sus filas también abren la hoja.
+**Informes.** Cuatro cortes de lo mismo:
+
+- *Por estudiante*, con una **gráfica de barras del trabajo acumulado**,
+  ordenada de más a menos, que es la pregunta de "quién cumple y con quién hay
+  que sentarse". Cada barra separa lo entregado de lo que sigue a medias: seis
+  hojas todas sin entregar no es lo mismo que seis entregadas, y esa es
+  justamente la diferencia que decide si hay una conversación pendiente. Los
+  colores están comprobados para daltonismo y para los dos temas, y como el
+  verde no llega al contraste mínimo sobre fondo claro, cada barra lleva su
+  cifra escrita y la tabla de abajo repite todos los valores: la información
+  nunca depende solo del color.
+- *Por grupo*, con cuántos de cuántos han trabajado.
+- *Por salón*, por dónde está la máquina, con el veredicto de su última
+  revisión entregada.
+- *Todas las hojas*, la tabla de siempre para buscar por serial o mirar otras
+  fechas.
+
+**Inventario.** No se teclea aparte: se llena solo con cada serial que un
+estudiante escribe en una hoja. Sale con marca, modelo, número de inventario,
+salón, cuántas revisiones lleva y cómo salió la última. Se descarga en CSV
+(con BOM, para que Excel abra bien los acentos).
+
+**Revisar.** Lo que pide una decisión tuya:
+
+- Hojas **entregadas sin culminar**, con la lista de qué les falta.
+- La misma máquina con el **serial escrito distinto** (`ABC1234`, `abc-1234`,
+  `ABC 1234`), que se pueden **unificar** en una sola.
+- El **mismo equipo revisado dos veces el mismo día**, normalmente por dos
+  estudiantes que no sabían el uno del otro.
+- **Números de inventario repetidos** en máquinas distintas.
+- **Estudiantes con más de una cuenta**, cuyo trabajo se puede pasar todo a una.
 
 Tocar cualquier renglón abre la hoja del estudiante **de solo lectura**. Esto
 importa más de lo que parece: RLS le deja al instructor *editar* las hojas de
@@ -140,8 +184,37 @@ lo está escribiendo en ese momento. Por eso se abre siempre el reporte, sin
 botón de reabrir, y la firma sigue siendo la del estudiante y no la de quien
 mira.
 
-El tablero necesita conexión: el trabajo de los demás nunca se guarda en el
-equipo del instructor, porque no es suyo.
+El tablero y los informes necesitan conexión: el trabajo de los demás nunca se
+guarda en el equipo del instructor, porque no es suyo.
+
+### Datos incompletos
+
+Una hoja a la que le falte el serial, la marca o el modelo, el sistema
+operativo, los hallazgos, el número de orden o puntos por evaluar sale marcada
+**"falta culminar"** en tres sitios: en la propia hoja del estudiante, en su
+panel y en el tablero del docente, siempre diciendo qué es lo que falta.
+
+**No se bloquea nada.** Fue una decisión deliberada: bloquear el guardado
+perdería trabajo en el taller sin señal, que es justo lo que el guardado local
+existe para evitar, y bloquear la entrega dejaría al estudiante sin poder
+cerrar una hoja de un equipo que, por ejemplo, no tiene etiqueta legible. Se
+marca y decide el docente.
+
+### Unificar duplicados
+
+Unificar **borra filas y no se deshace**, así que nunca pasa solo: se pregunta
+antes, diciendo qué se queda, qué desaparece y cuántas hojas se mueven.
+
+Al unificar equipos se queda el que tiene más historial —así se mueven las
+menos hojas posibles—; a igualdad, el registro más completo, porque borrar el
+que tiene número de inventario perdería ese dato; y a igualdad de eso, el
+serial escrito en limpio. Las hojas se mueven **antes** de borrar los equipos:
+al revés, la clave foránea las dejaría sueltas.
+
+Al unificar estudiantes el trabajo pasa a una sola cuenta, pero la cuenta
+vacía **no se borra desde la app**: eso necesita permisos de administración
+que el navegador no tiene ni debe tener. La app te dice cuál borrar desde
+Authentication → Users en el panel de Supabase.
 
 ## El taller sin señal
 
