@@ -96,6 +96,13 @@ node sync/sync.mjs        # escribir
 Abre `vault/` como vault en Obsidian e instala **Dataview** (las tablas de
 `Inicio.md` no funcionan sin él).
 
+El vault es la vista larga: historial de cada equipo, cómo va el semestre y
+tus propias notas. Lo del día —quién está trabajando ahora, quién no ha
+empezado— está en la app, que se actualiza sola. Las notas de diagnóstico
+llevan `salon`, `completa` y `falta` en el frontmatter, así que Dataview puede
+agrupar por salón y listar lo que quedó a medias con la misma regla que usa la
+app: `faltantes()` está compartido entre las dos, no copiado.
+
 ## Lo que este sistema NO hace
 
 - **No deja entrar por primera vez sin internet.** Crear la cuenta y el primer

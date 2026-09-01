@@ -14,6 +14,11 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, unlinkSync } from "node:fs";
 import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+// Compartidos con la app: el protocolo y la regla de qué hace que una hoja
+// esté a medias. Si se definieran aquí otra vez, el vault y la app acabarían
+// diciendo cosas distintas del mismo diagnóstico.
+import { PUNTOS, VEREDICTOS } from "../docs/protocolo.js";
+import { faltantes } from "../docs/informes.js";
 
 const RAIZ = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const DRY     = process.argv.includes("--dry");
@@ -53,7 +58,6 @@ async function api(recurso, query = "select=*") {
 }
 
 /* ---------- helpers ---------- */
-const VEREDICTOS = { "": "Sin evaluar", apto: "Apto", obs: "Apto con observaciones", no: "No apto" };
 const ETQ = { ok: "Bien", obs: "Observación", falla: "Falla", na: "N/A", "": "—" };
 
 // Obsidian se atraganta con estos caracteres en nombres de archivo y enlaces
@@ -73,6 +77,12 @@ function escribir(ruta, texto, soloSiFalta = false) {
 /* ---------- notas ---------- */
 function notaDiagnostico(d, puntos) {
   const c = d.conteo || {};
+  // La misma regla que usa la app para marcar "falta culminar": una sola
+  // definición para las dos.
+  const falta = faltantes(
+    { conteo: c, sistema: d.sistema, hallazgos: d.hallazgos, orden: d.orden },
+    { serial: d.equipo_serial, marca: d.equipo_marca, modelo: d.equipo_modelo },
+    PUNTOS.length);
   const nombreEquipo = d.equipo_serial
     ? limpio(`${d.equipo_marca || ""} ${d.equipo_modelo || ""}`.trim() || d.equipo_serial)
     : null;
@@ -93,6 +103,8 @@ function notaDiagnostico(d, puntos) {
     `equipo: ${yaml(nombreEquipo || "")}`,
     `equipo_serial: ${yaml(d.equipo_serial || "")}`,
     `equipo_inventario: ${yaml(d.equipo_inventario || "")}`,
+    `equipo_tipo: ${yaml(d.equipo_tipo || "")}`,
+    `salon: ${yaml(d.equipo_ubicacion || "")}`,
     `sistema: ${yaml(d.sistema)}`,
     `proximo_paso: ${yaml(d.proximo_paso)}`,
     `ok: ${c.ok || 0}`,
@@ -101,6 +113,8 @@ function notaDiagnostico(d, puntos) {
     `na: ${c.na || 0}`,
     `sin: ${c.sin || 0}`,
     `entregado_en: ${yaml(d.entregado_en || "")}`,
+    `completa: ${falta.length === 0}`,
+    `falta: ${yaml(falta.join(", "))}`,
     "tags: [diagnostico]",
     "---",
     ""
@@ -130,7 +144,10 @@ function notaDiagnostico(d, puntos) {
 ${enlaces}
 
 **${VEREDICTOS[d.veredicto] || "Sin evaluar"}** — ${c.ok || 0} bien · ${c.obs || 0} observación · ${c.falla || 0} falla · ${c.na || 0} N/A · ${c.sin || 0} sin evaluar
-
+${falta.length ? `
+> [!warning] Falta culminar
+> Queda por poner: ${falta.join(", ")}.
+` : ""}
 ## Hoja de cotejo
 
 ${cuerpo}
@@ -160,7 +177,7 @@ tags: [equipo]
 ---
 # ${limpio(`${e.marca || ""} ${e.modelo || ""}`.trim() || e.serial)}
 
-Serial \`${e.serial}\`${e.inventario ? ` · inventario \`${e.inventario}\`` : ""}${e.ubicacion ? ` · ${e.ubicacion}` : ""}
+Serial \`${e.serial}\`${e.inventario ? ` · inventario \`${e.inventario}\`` : ""}${e.ubicacion ? ` · ${e.ubicacion}` : "  ·  _sin salón registrado_"}
 
 ## Historial de diagnósticos
 \`\`\`dataview

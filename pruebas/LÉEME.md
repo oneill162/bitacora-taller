@@ -5,11 +5,12 @@ código: que el trabajo de un estudiante no se pierde cuando el taller se
 queda sin señal.
 
 ```bash
-node pruebas/correr.mjs
+node pruebas/correr.mjs        # la app: guardado sin señal, tablero, informes
+node pruebas/correr-sync.mjs   # el sincronizador al vault de Obsidian
 ```
 
-Hace falta `chromium` en el PATH y nada más: ni `npm install` ni conexión a
-Supabase. El corredor levanta un servidor que sirve `docs/` igual que lo hace
+Hace falta `chromium` en el PATH para la primera y nada más: ni `npm install`
+ni conexión a Supabase. El corredor levanta un servidor que sirve `docs/` igual que lo hace
 GitHub Pages, abre Chromium por su protocolo de depuración y le corta la red
 desde fuera.
 
@@ -30,6 +31,19 @@ Tres cosas se prueban por separado:
 - **El wifi de la escuela** — conectado y sin salida a internet, que es el
   caso que `navigator.onLine` no sabe distinguir. La app tiene que abrirle su
   bitácora al estudiante en vez de mandarlo a la pantalla de entrar.
+
+## El sincronizador (`correr-sync.mjs`)
+
+Corre `sync/sync.mjs` entero contra un Supabase de mentira y mira las notas que
+escribe: que lleven el salón y el tipo de equipo, que marquen si la hoja quedó
+a medias **con la misma regla que usa la app** —`faltantes()` está compartido,
+no copiado—, que `--dry` no escriba nada, y sobre todo que una segunda corrida
+**no pise lo que el instructor haya escrito** en las notas de equipo y
+estudiante.
+
+Copia `sync/` y `docs/` a una carpeta temporal para poner ahí el `.env`, porque
+`sync.mjs` lo lee de la raíz del proyecto. Así no hay manera de que la prueba
+deje un `.env` falso al lado del de verdad; de hecho lo comprueba al terminar.
 
 ## Lo que estas pruebas no cubren
 
@@ -62,3 +76,10 @@ se dispara y sube al momento.
 
 Repetirlo crea datos en el proyecto de producción y hay que borrarlos a mano
 después. No hay guion para eso en el repo a propósito.
+
+**Las consultas de Dataview de `vault/Inicio.md`.** Necesitan Obsidian con el
+plugin puesto y no hay forma de ejecutarlas desde aquí. Lo que sí está probado
+es que el sincronizador escriba los campos que esas consultas piden (`salon`,
+`completa`, `falta`). Si alguna tabla sale vacía al abrir el vault, mira
+primero si las notas de `04-Diagnosticos` traen esos campos: son nuevos, así
+que hace falta una corrida de `sync.mjs` para que aparezcan en las viejas.
