@@ -111,7 +111,9 @@ app: `faltantes()` está compartido entre las dos, no copiado.
   acceso necesitan conexión, y ver el trabajo de los demás también. Todo lo
   demás sí funciona sin señal — ver la sección siguiente.
 - **No recupera contraseñas solo.** Como no hay correo real, si un estudiante
-  olvida la suya se la reinicias desde Authentication → Users en el panel.
+  olvida la suya la reinicias tú: Informes → Por estudiante → *Reiniciar clave*,
+  escribes una nueva y se la dices en persona. Requiere desplegar la función
+  `supabase functions deploy reiniciar` (esta sí lleva JWT, solo instructores).
 - **No comprueba contraseñas filtradas.** Supabase puede validar contra
   HaveIBeenPwned; está apagado. Se enciende en Authentication → Policies si
   quieres que los estudiantes no usen contraseñas conocidas.

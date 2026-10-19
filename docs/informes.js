@@ -227,3 +227,51 @@ export function elegirSuperviviente(equipos, revisiones) {
   });
   return mejor;
 }
+
+/* ================= hojas y equipos incompletos ================= */
+// El informe final solo lleva lo completo. Una hoja entregada a la que le falta
+// algo se deja fuera de las sumas (los borradores no cuentan como incompletos:
+// todavía se están escribiendo) y sale en el informe de incompletos.
+export const soloFinales = (diagnosticos, eqPorId, totalPuntos) =>
+  diagnosticos.filter(d =>
+    !(d.estado === "entregado" && estaIncompleta(d, eqPorId[d.equipo_id], totalPuntos)));
+
+// Una fila por hoja entregada con faltantes, y una por equipo que nunca tuvo
+// hoja (restos de un serial a medio escribir, o registros sueltos). Cada fila
+// cuelga de quien tiene que arreglarla: el autor de la hoja o quien creó el equipo.
+export function incompletos(equipos, diagnosticos, totalPuntos) {
+  const eqPorId = Object.fromEntries(equipos.map(e => [e.id, e]));
+  const filas = [];
+  diagnosticos.filter(d => d.estado === "entregado").forEach(d => {
+    const falta = faltantes(d, eqPorId[d.equipo_id], totalPuntos);
+    if (falta.length) filas.push({ autor_id: d.autor_id, hoja: d, equipo: eqPorId[d.equipo_id] || null, falta });
+  });
+  const conHoja = new Set(diagnosticos.map(d => d.equipo_id));
+  equipos.filter(e => !conHoja.has(e.id)).forEach(e =>
+    filas.push({ autor_id: e.creado_por, hoja: null, equipo: e, falta: ["ninguna hoja entregada"] }));
+  return filas;
+}
+
+// equipo_id → qué le falta, para marcar el inventario
+export function faltaPorEquipo(filas) {
+  const m = {};
+  filas.forEach(f => {
+    if (!f.equipo) return;
+    (m[f.equipo.id] ??= new Set());
+    f.falta.forEach(x => m[f.equipo.id].add(x));
+  });
+  return Object.fromEntries(Object.entries(m).map(([k, v]) => [k, [...v]]));
+}
+
+export function agruparIncompletos(filas, perfilesPorId = {}) {
+  const g = new Map();
+  filas.forEach(f => {
+    const k = f.autor_id || "?";
+    if (!g.has(k)) g.set(k, []);
+    g.get(k).push(f);
+  });
+  return [...g.entries()].map(([id, items]) => ({
+    id, nombre: perfilesPorId[id]?.nombre || perfilesPorId[id]?.usuario || "Sin dueño conocido",
+    grupo: perfilesPorId[id]?.grupo || "", filas: items
+  })).sort((a, b) => b.filas.length - a.filas.length || a.nombre.localeCompare(b.nombre, "es"));
+}

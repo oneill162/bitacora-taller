@@ -212,7 +212,15 @@ div.fila-t:hover{border-color:var(--rule-soft);background:var(--surface)}
   padding:.6rem .75rem;font-family:var(--f-display);font-size:.84rem;
   display:flex;flex-direction:column;gap:.15rem;margin-bottom:.5rem}
 .falta span{font-size:.8rem;opacity:.9}
-.pill.falta-pill{color:var(--obs);background:var(--obs-bg);margin-left:.3rem}
+.pill.falta-pill{color:var(--bad);background:var(--bad-bg);border-color:var(--bad);margin-left:.3rem}
+.fila-falta{background:var(--bad-bg);box-shadow:inset 3px 0 0 var(--bad)}
+.datos tr.fila-falta td{background:var(--bad-bg)}
+.datos tr.fila-falta td:first-child{box-shadow:inset 3px 0 0 var(--bad)}
+.exclama{display:inline-grid;place-items:center;width:1.1em;height:1.1em;border-radius:50%;
+  background:var(--bad);color:#fff;font-size:.8em;line-height:1}
+.aviso-falta{color:var(--bad);font-size:.85rem;margin:.5rem 0}
+.grupo-falta h3{display:flex;justify-content:space-between;gap:1rem;margin:1rem 0 .3rem;font-size:1rem}
+.grupo-falta h3 small{color:var(--ink-3)}
 
 /* ---------------- gráfica de trabajo acumulado ----------------
    Paleta categórica validada con el comprobador de la guía de gráficas:
