@@ -142,3 +142,10 @@ export async function empujar(marca){
 
 // Marca de "falta información": el signo va en el texto para que no dependa solo del rojo.
 export const ICONO_FALTA = '<b class="exclama" aria-label="Incompleto">!</b>';
+
+// Pide el aviso por correo. Nunca estorba: sin señal, sin correo configurado o
+// con un error, se calla; el trabajo ya está guardado.
+export function avisarPorCorreo(tipo, diag_id){
+  if(!conectado()) return;
+  sb.functions.invoke("avisar", { body: { tipo, diag_id } }).catch(() => {});
+}

@@ -86,6 +86,9 @@ Deno.serve(async (req: Request) => {
         nombre:  texto("nombre", 120),
         grupo:   texto("grupo", 60),
         escuela: texto("escuela", 120),
+        email:   texto("email", 160),
+        // solo una solicitud: el rol lo cambia el superusuario, nunca el formulario
+        solicita_instructor: cuerpo.solicita_instructor === true,
       },
     }),
   });

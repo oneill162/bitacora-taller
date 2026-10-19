@@ -66,6 +66,10 @@ const sumar = (diags, totalPuntos) => {
     fallas: diags.reduce((n, d) => n + (d.conteo?.falla || 0), 0),
     observaciones: diags.reduce((n, d) => n + (d.conteo?.obs || 0), 0),
     noAptos: entregadas.filter(d => d.veredicto === "no").length,
+    promedio: (() => {
+      const n = diags.map(d => d.nota).filter(x => x != null).map(Number);
+      return n.length ? Math.round(n.reduce((a, b) => a + b, 0) / n.length * 10) / 10 : null;
+    })(),
     ultima: diags.map(d => d.fecha).sort().pop() || null
   };
 };

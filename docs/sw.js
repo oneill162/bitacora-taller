@@ -7,7 +7,7 @@
 // Al publicar cambios, sube VERSION. Es lo que hace que los teléfonos
 // suelten la copia vieja: el cache lleva la versión en el nombre y al
 // activarse el worker nuevo borra los demás.
-const VERSION = "v7";
+const VERSION = "v8";
 const CACHE = `bitacora-${VERSION}`;
 
 // Lo que se baja de una al instalar: la app entera, supabase-js incluido.

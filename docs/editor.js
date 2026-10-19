@@ -1,7 +1,7 @@
 import { GRUPOS, PUNTOS, ESTADOS, VEREDICTOS, resumir } from "./protocolo.js";
 import * as local from "./local.js";
 import * as inf from "./informes.js";
-import { sb, $, app, estado, META_PUNTOS, esc, fechaLarga, val, ETQ, aviso, explicar, esDeRed, conCorte, servidor, conectado, empujar } from "./nucleo.js";
+import { sb, $, app, estado, META_PUNTOS, esc, fechaLarga, val, ETQ, aviso, explicar, esDeRed, conCorte, servidor, conectado, empujar, avisarPorCorreo } from "./nucleo.js";
 import { pintar } from "./router.js";
 import { cargarLista } from "./acceso.js";
 import { cargarTaller } from "./tablero.js";
@@ -224,7 +224,8 @@ export async function entregar(){
                   entregado_en: new Date().toISOString(),
                   veredicto: r.veredicto, conteo: r.conteo };
   await local.guardarDiag(estado.diag);
-  await empujar();
+  const r2 = await empujar();
+  if(r2.pendientes === 0) avisarPorCorreo("entregada", estado.diag.id);
   estado.vista = "reporte";
   pintar();
 }
@@ -257,7 +258,20 @@ export function vistaReporte(){
       ${!estado.ajena && d.estado === "entregado"
         ? '<button class="btn ghost chico" id="b-reabrir">Reabrir como borrador</button>' : ""}
     </div>
-    ${estado.ajena ? `<p class="ajena no-print">Hoja de ${esc(val(p.nombre, p.usuario))}. Solo lectura.</p>` : ""}
+    ${estado.ajena ? `<p class="ajena no-print">Hoja de ${esc(val(p.nombre, p.usuario))}. Se mira sin editar; abajo la calificas o la borras.</p>` : ""}
+    ${estado.ajena && estado.perfil.rol === "instructor" ? `
+    <form id="f-nota" class="calificar no-print">
+      <label class="f">Nota (0–100)
+        <input id="n-nota" type="number" min="0" max="100" step="0.01" value="${esc(d.nota ?? "")}"></label>
+      <label class="f">Comentario para el estudiante
+        <textarea id="n-comentario" rows="2">${esc(d.comentario || "")}</textarea></label>
+      <div class="fila">
+        <button class="btn chico" type="submit">Guardar nota</button>
+        <button class="btn peligro chico" type="button" id="b-borrar-hoja">Borrar esta hoja</button>
+      </div>
+    </form>` : ""}
+    ${!estado.ajena && d.nota != null ? `<div class="nota-final"><b>Nota: ${esc(d.nota)}</b>${
+      d.comentario ? `<p>${esc(d.comentario)}</p>` : ""}</div>` : ""}
     <div id="aviso" hidden></div>
     ${(() => {
       const falta = inf.faltantes(d, eq, PUNTOS.length);
@@ -308,6 +322,25 @@ export function montarReporte(){
     await cargarLista(); estado.vista = "panel"; pintar();
   };
   $("#b-imprimir").onclick = () => window.print();
+  $("#f-nota")?.addEventListener("submit", async ev => {
+    ev.preventDefault();
+    const bruto = $("#n-nota").value.trim();
+    const nota = bruto === "" ? null : Number(bruto);
+    if(nota !== null && !(nota >= 0 && nota <= 100)){ aviso("La nota va de 0 a 100."); return; }
+    const comentario = $("#n-comentario").value.trim();
+    const { error } = await conCorte(sb.from("diagnosticos").update({ nota, comentario }).eq("id", estado.diag.id));
+    if(error){ aviso(explicar(error)); return; }
+    estado.diag = { ...estado.diag, nota, comentario };
+    if(nota !== null) avisarPorCorreo("calificada", estado.diag.id);
+    aviso("Nota guardada." + (nota !== null ? " Se le avisa al estudiante si tiene correo." : ""), "exito");
+  });
+  $("#b-borrar-hoja")?.addEventListener("click", async () => {
+    if(!confirm("Se borra esta hoja del estudiante y todo lo anotado. No se deshace. ¿Seguro?")) return;
+    const { error } = await conCorte(sb.from("diagnosticos").delete().eq("id", estado.diag.id));
+    if(error){ aviso(explicar(error)); return; }
+    estado.ajena = false; estado.autor = estado.perfil; estado.diag = null;
+    estado.vista = "instructor"; pintar(); await cargarTaller();
+  });
   $("#b-reabrir")?.addEventListener("click", async () => {
     estado.diag = { ...estado.diag, estado: "borrador", entregado_en: null };
     await local.guardarDiag(estado.diag);

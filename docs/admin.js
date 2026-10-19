@@ -16,10 +16,10 @@ export async function cargarDatos(){
   }
   const [{ data: gente, error: e1 }, { data: eqs, error: e2 }, { data: hojas, error: e3 }] =
     await Promise.all([
-      conCorte(sb.from("perfiles").select("id, usuario, nombre, grupo, escuela, rol")),
+      conCorte(sb.from("perfiles").select("id, usuario, nombre, grupo, escuela, rol, email, solicita_instructor, es_superusuario")),
       conCorte(sb.from("equipos").select("*")),
       conCorte(sb.from("diagnosticos")
-        .select("id, autor_id, equipo_id, orden, fecha, estado, veredicto, conteo, sistema, hallazgos, actualizado_en")
+        .select("id, autor_id, equipo_id, orden, fecha, estado, veredicto, conteo, sistema, hallazgos, actualizado_en, nota")
         .order("fecha", { ascending:false }).limit(2000))
     ]);
   const err = e1 || e2 || e3;
@@ -99,12 +99,12 @@ export function informePorEstudiante(){
     <td class="num">${f.puntos}</td>
     <td class="num">${f.fallas}</td>
     <td class="num">${f.incompletas ? `<span class="pill" data-v="obs">${f.incompletas}</span>` : "—"}</td>
+    <td class="num">${f.promedio == null ? "—" : f.promedio}</td>
     <td class="num">${esc(f.ultima || "—")}</td>
-    <td><button class="btn ghost chico" data-clave="${esc(f.id)}" data-nombre="${esc(f.nombre)}">Reiniciar clave</button></td>
   </tr>`).join("");
   return graficaTrabajo(filas) +
     tabla(["Estudiante","Grupo","Hojas","Entregadas","Sin entregar","Puntos evaluados",
-           "Fallas halladas","Sin culminar","Última",""], cuerpo);
+           "Fallas halladas","Sin culminar","Nota media","Última"], cuerpo);
 }
 
 // Lo que entra al informe final: sin las hojas entregadas a medias.
@@ -244,12 +244,13 @@ export function pintarPestana(p){
       if(b) b.onclick = () => descargar("equipos-incompletos.csv", csvIncompletos(), "text/csv");
     }
     if(estado.informe === "todo") montarTablaTaller();
-    caja.querySelectorAll("[data-clave]").forEach(b =>
-      b.onclick = () => reiniciarClave(b.dataset.clave, b.dataset.nombre));
   } else if(p === "inventario"){
     caja.innerHTML = vistaInventario();
     const b = $("#b-csv");
     if(b) b.onclick = () => descargar("inventario-taller.csv", csvInventario(), "text/csv");
+  } else if(p === "gente"){
+    caja.innerHTML = vistaGente();
+    montarGente(caja);
   } else if(p === "revisar"){
     caja.innerHTML = vistaRevisar();
     enlazarAjenas(caja);
@@ -432,13 +433,95 @@ export async function unirEstudiantes(clave){
     `desde Authentication → Users en Supabase.`);
 }
 
-// La clave nueva la inventa el instructor y se la dice al estudiante en persona.
-export async function reiniciarClave(id, nombre){
-  const password = prompt(`Contraseña nueva para ${nombre} (mínimo 6 caracteres):`);
-  if(!password) return;
-  const { data, error } = await conCorte(sb.functions.invoke("reiniciar", { body: { id, password } }));
-  const msg = data?.error || (error && explicar(error));
-  aviso(msg || `Listo: ${nombre} ya puede entrar con la clave nueva.`, msg ? "error" : "exito");
+/* ---------- gente: estudiantes e instructores ---------- */
+const clavePropuesta = () => {
+  // sin 0/O ni 1/l: se la va a dictar a alguien
+  const a = "abcdefghjkmnpqrstuvwxyz23456789";
+  return Array.from(crypto.getRandomValues(new Uint8Array(8)), n => a[n % a.length]).join("");
+};
+
+async function gestionar(cuerpo){
+  const { data, error } = await conCorte(sb.functions.invoke("gestion", { body: cuerpo }));
+  let msg = data?.error;
+  if(error && !msg){ try { msg = (await error.context.json()).error; } catch(_){ msg = explicar(error); } }
+  return msg || null;
+}
+
+export function vistaGente(){
+  const d = estado.datos;
+  if(!d) return `<p class="vacio-chico">Cargando…</p>`;
+  const soySuper = estado.perfil.es_superusuario === true;
+  const gente = Object.values(d.porId).sort((a, b) =>
+    (b.solicita_instructor - a.solicita_instructor) || (a.rol === b.rol ? 0 : a.rol === "instructor" ? -1 : 1) ||
+    String(a.nombre || a.usuario).localeCompare(String(b.nombre || b.usuario), "es"));
+  const hojas = id => d.diagnosticos.filter(h => h.autor_id === id).length;
+  const filas = gente.map(p => {
+    const esInst = p.rol === "instructor";
+    const puede = !esInst || soySuper;           // un instructor solo gestiona estudiantes
+    const botones = (puede && p.id !== estado.perfil.id ? `
+        <button class="btn ghost chico" data-g-clave="${esc(p.id)}" data-nombre="${esc(p.nombre || p.usuario)}">Nueva clave</button>
+        <button class="btn peligro chico" data-g-borrar="${esc(p.id)}" data-nombre="${esc(p.nombre || p.usuario)}">Borrar</button>` : "") +
+      (soySuper && !p.es_superusuario ? `
+        <button class="btn ghost chico" data-g-rol="${esc(p.id)}" data-a="${esc(esInst ? "estudiante" : "instructor")}" data-nombre="${esc(p.nombre || p.usuario)}">${
+          esInst ? "Quitar instructor" : "Hacer instructor"}</button>` : "");
+    return `<tr>
+      <td>${esc(p.nombre || p.usuario)}<small class="sub-td">${esc(p.usuario)}</small></td>
+      <td>${esc(p.grupo || "—")}</td>
+      <td>${esc(p.email || "—")}</td>
+      <td>${p.es_superusuario ? "Superusuario" : esInst ? "Instructor" : "Estudiante"}${
+        p.solicita_instructor && !esInst ? ' <span class="pill" data-v="obs">Pide ser instructor</span>' : ""}</td>
+      <td class="num">${hojas(p.id)}</td>
+      <td class="fila">${botones}</td>
+    </tr>`;
+  }).join("");
+  return `
+    <p class="pista">Las contraseñas no se pueden ver (Supabase solo guarda un cifrado). Si alguien la olvida,
+      <b>Nueva clave</b> genera una y se la dices en persona.
+      ${soySuper ? "Como superusuario también nombras a los instructores." : "Solo el superusuario nombra instructores."}</p>
+    <form id="f-nuevo-est" class="campos filtros no-print">
+      <label class="f">Usuario<input id="g-usuario" required placeholder="lrivera" autocapitalize="none"></label>
+      <label class="f">Clave<input id="g-clave" required minlength="6" value="${esc(clavePropuesta())}"></label>
+      <label class="f">Nombre<input id="g-nombre"></label>
+      <label class="f">Grupo<input id="g-grupo" value="${esc(estado.perfil.grupo || "")}"></label>
+      <label class="f">Correo<input id="g-email" type="email"></label>
+      <button class="btn chico" type="submit">Agregar estudiante</button>
+    </form>` + tabla(["Nombre","Grupo","Correo","Rol","Hojas",""], filas);
+}
+
+export function montarGente(caja){
+  const recargar = async msg => { await cargarDatos(); pintarPestana("gente"); if(msg) aviso(msg, "exito"); };
+  $("#f-nuevo-est")?.addEventListener("submit", async ev => {
+    ev.preventDefault();
+    const clave = $("#g-clave").value;
+    const msg = await gestionar({ accion: "crear", usuario: $("#g-usuario").value.trim().toLowerCase(),
+      password: clave, nombre: $("#g-nombre").value.trim(), grupo: $("#g-grupo").value.trim(),
+      email: $("#g-email").value.trim() });
+    if(msg){ aviso(msg); return; }
+    alert(`Cuenta creada.\nUsuario: ${$("#g-usuario").value.trim().toLowerCase()}\nClave: ${clave}\nAnótala: no se vuelve a mostrar.`);
+    await recargar("Estudiante agregado.");
+  });
+  caja.querySelectorAll("[data-g-clave]").forEach(b => b.onclick = async () => {
+    const clave = prompt(`Clave nueva para ${b.dataset.nombre} (mínimo 6 caracteres):`, clavePropuesta());
+    if(!clave) return;
+    const msg = await gestionar({ accion: "clave", id: b.dataset.gClave, password: clave });
+    if(msg){ aviso(msg); return; }
+    alert(`Listo. Clave de ${b.dataset.nombre}: ${clave}\nDísela en persona; no se vuelve a mostrar.`);
+  });
+  caja.querySelectorAll("[data-g-borrar]").forEach(b => b.onclick = async () => {
+    const n = estado.datos.diagnosticos.filter(h => h.autor_id === b.dataset.gBorrar).length;
+    if(!confirm(`Se borra la cuenta de ${b.dataset.nombre} y sus ${n} hojas. No se deshace. ¿Seguro?`)) return;
+    const msg = await gestionar({ accion: "borrar", id: b.dataset.gBorrar });
+    if(msg){ aviso(msg); return; }
+    await recargar("Cuenta borrada.");
+  });
+  caja.querySelectorAll("[data-g-rol]").forEach(b => b.onclick = async () => {
+    const a = b.dataset.a;
+    if(!confirm(a === "instructor" ? `¿Nombrar instructor a ${b.dataset.nombre}? Podrá ver y editar el trabajo de todos.`
+                                  : `¿Quitarle el rol de instructor a ${b.dataset.nombre}?`)) return;
+    const { error } = await conCorte(sb.from("perfiles").update({ rol: a }).eq("id", b.dataset.gRol));
+    if(error){ aviso(explicar(error)); return; }
+    await recargar(a === "instructor" ? "Ahora es instructor." : "Ya no es instructor.");
+  });
 }
 
 export async function recargarInstructor(mensaje){
@@ -480,6 +563,7 @@ export function filasInstructor(filas){
       <td><span class="pill" data-v="${esc(f.estado === "borrador" ? "" : f.veredicto)}">${
         f.estado === "borrador" ? "Borrador" : esc(VEREDICTOS[f.veredicto] || "—")}</span></td>
       <td class="num">${c.ok || 0}/${c.obs || 0}/${c.falla || 0}</td>
+      <td class="num">${f.nota == null ? "—" : esc(f.nota)}</td>
     </tr>`;
   }).join("");
 }
@@ -501,6 +585,7 @@ export function vistaInstructor(){
       <button type="button" id="p-informes" aria-pressed="false">Informes</button>
       <button type="button" id="p-inventario" aria-pressed="false">Inventario</button>
       <button type="button" id="p-revisar" aria-pressed="false">Revisar</button>
+      <button type="button" id="p-gente" aria-pressed="false">Gente</button>
     </div>
     <div id="aviso" hidden></div>
 
@@ -529,6 +614,7 @@ export function vistaInstructor(){
 
     <div id="panel-inventario" hidden><div id="cuerpo-inventario"></div></div>
     <div id="panel-revisar" hidden><div id="cuerpo-revisar"></div></div>
+    <div id="panel-gente" hidden><div id="cuerpo-gente"></div></div>
   </div>`;
 }
 
@@ -555,7 +641,7 @@ export function vistaTablaTaller(){
     <div class="tabla-envoltura">
       <table class="datos"><thead><tr>
         <th>Fecha</th><th>Estudiante</th><th>Grupo</th><th>Serial</th>
-        <th>Equipo</th><th>Veredicto</th><th>B/O/F</th>
+        <th>Equipo</th><th>Veredicto</th><th>B/O/F</th><th>Nota</th>
       </tr></thead><tbody id="tb">${cuerpo}</tbody></table>
     </div>`;
 }
@@ -567,7 +653,7 @@ export function montarInstructor(){
   };
 
   /* ---- pestañas ---- */
-  const PESTANAS = ["hoy","informes","inventario","revisar"];
+  const PESTANAS = ["hoy","informes","inventario","revisar","gente"];
   const verPestana = async p => {
     estado.pestana = p;
     PESTANAS.forEach(x => {

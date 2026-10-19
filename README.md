@@ -110,10 +110,9 @@ app: `faltantes()` está compartido entre las dos, no copiado.
 - **No deja entrar por primera vez sin internet.** Crear la cuenta y el primer
   acceso necesitan conexión, y ver el trabajo de los demás también. Todo lo
   demás sí funciona sin señal — ver la sección siguiente.
-- **No recupera contraseñas solo.** Como no hay correo real, si un estudiante
-  olvida la suya la reinicias tú: Informes → Por estudiante → *Reiniciar clave*,
-  escribes una nueva y se la dices en persona. Requiere desplegar la función
-  `supabase functions deploy reiniciar` (esta sí lleva JWT, solo instructores).
+- **No muestra contraseñas.** Supabase solo guarda un cifrado, así que nadie
+  puede verlas, ni el instructor. Si un estudiante olvida la suya: Informes → pestaña
+  *Gente* → *Nueva clave* genera una, la pone y te la muestra una vez para dártela en persona.
 - **No comprueba contraseñas filtradas.** Supabase puede validar contra
   HaveIBeenPwned; está apagado. Se enciende en Authentication → Policies si
   quieres que los estudiantes no usen contraseñas conocidas.
@@ -319,3 +318,21 @@ de servidor sin JWT. Verificado después del arreglo:
 | Robar el usuario de otro | usuario sigue en `mcolon` |
 | Leer el código de clase | `[]` |
 | Cambiar su propio nombre | funciona, como debe |
+
+## Roles, notas y avisos (migración 0007)
+
+- **Superusuario:** el único que nombra o quita instructores (pestaña *Gente*). Quien
+  marca *Quiero ser instructor* al crear la cuenta solo deja una solicitud; sigue como
+  estudiante hasta que el superusuario la apruebe. Se nombra una vez, desde el SQL Editor:
+  `update public.perfiles set rol='instructor', es_superusuario=true where usuario='TU_USUARIO';`
+- **Instructor:** ve y califica todo, borra hojas (también entregadas), agrega estudiantes,
+  les cambia la clave y los borra (se van con sus hojas). Las hojas ajenas se abren de
+  solo lectura a propósito (ver arriba); no hay edición campo por campo.
+- **Notas:** 0–100 y comentario por hoja. Un estudiante no puede tocarlas: un trigger las revierte.
+- **Correo:** cada quien lo agrega en *Mis diagnósticos*. La función `avisar` manda un
+  correo al entregar una hoja y al calificarla, con **Resend**: secretos `RESEND_API_KEY` y
+  `AVISOS_DE` en las Edge Functions. Sin la llave no se envía nada y la app sigue igual. Sin
+  dominio verificado en Resend solo se puede escribir a tu propio correo. Los avisos salen
+  desde el navegador: una entrega hecha sin señal avisa al subir, y si se cierra la app justo
+  antes, ese aviso se pierde.
+- Funciones: `registro`, `gestion` y `avisar` (`supabase functions deploy <nombre>`).

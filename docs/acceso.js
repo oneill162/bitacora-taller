@@ -38,6 +38,11 @@ export function vistaAcceso(){
         </label>
         <label class="f">Nombre completo
           <input id="a-nombre" autocomplete="name" placeholder="Luis Rivera"></label>
+        <label class="f">Correo (opcional)
+          <input id="a-email" type="email" autocomplete="email" placeholder="para recibir avisos">
+          <span class="pista">Solo para avisarte cuando entregues o te califiquen. Puedes ponerlo después.</span></label>
+        <label class="f marca"><span><input type="checkbox" id="a-instructor"> Quiero ser instructor</span>
+          <span class="pista">Es una solicitud: sigues como estudiante hasta que el administrador la apruebe.</span></label>
         <label class="f">Grupo o sección
           <input id="a-grupo" placeholder="Tec. de Sistemas 4-B"></label>
         <label class="f">Escuela
@@ -97,7 +102,9 @@ export function montarAcceso(){
             codigo:  $("#a-codigo").value.trim(),
             nombre:  $("#a-nombre").value.trim(),
             grupo:   $("#a-grupo").value.trim(),
-            escuela: $("#a-escuela").value.trim()
+            escuela: $("#a-escuela").value.trim(),
+            email:   $("#a-email").value.trim(),
+            solicita_instructor: $("#a-instructor").checked
           }
         }));
         if(error){
@@ -132,7 +139,7 @@ export async function cargarLista(){
   if(conectado()){
     const { data, error } = await conCorte(sb
       .from("diagnosticos")
-      .select("id, orden, fecha, creado_en, estado, veredicto, conteo, sistema, hallazgos, equipos(serial, marca, modelo)")
+      .select("id, orden, fecha, creado_en, estado, veredicto, conteo, sistema, hallazgos, nota, comentario, equipos(serial, marca, modelo)")
       .order("fecha", { ascending:false })
       .order("creado_en", { ascending:false })
       .limit(200));
@@ -159,6 +166,7 @@ export function vistaPanel(){
       <span class="pill${d.estado === "borrador" ? " borrador" : ""}" data-v="${esc(d.estado === "borrador" ? "" : d.veredicto)}">
         ${d.estado === "borrador" ? "Borrador" : esc(VEREDICTOS[d.veredicto] || "—")}
       </span>
+      ${d.nota != null ? `<span class="pill" data-v="apto" title="Nota del instructor">${esc(d.nota)}</span>` : ""}
       ${d.estado === "entregado" && loQueFalta(d).length
         ? `<span class="pill falta-pill" title="${esc("Falta: " + loQueFalta(d).join(", "))}">! Falta</span>` : ""}
     </button>`;
@@ -178,6 +186,13 @@ export function vistaPanel(){
       </div>
     </div>
     <div id="aviso" hidden></div>
+    <form id="f-correo" class="fila no-print correo">
+      <label class="f">Mi correo para avisos
+        <input id="p-email" type="email" value="${esc(p.email || "")}" placeholder="tu@correo.com"></label>
+      <button class="btn ghost chico" type="submit">Guardar correo</button>
+    </form>
+    ${p.solicita_instructor && p.rol !== "instructor"
+      ? '<p class="pista">Tu solicitud para ser instructor espera la aprobación del administrador.</p>' : ""}
     ${estado.lista.length
       ? `<div class="tarjetas">${filas}</div>`
       : `<div class="vacio">
@@ -218,6 +233,16 @@ export function montarPanel(){
     estado.pestana = "hoy";
     if(!estado.taller) estado.taller = { fecha: hoy(), grupo: "", estudiantes: [], hojas: [] };
     estado.vista = "instructor"; pintar(); await cargarTaller();
+  });
+  $("#f-correo")?.addEventListener("submit", async ev => {
+    ev.preventDefault();
+    const email = $("#p-email").value.trim();
+    if(!conectado()){ aviso("Guardar el correo necesita conexión."); return; }
+    const { error } = await conCorte(sb.from("perfiles").update({ email }).eq("id", estado.perfil.id));
+    if(error){ aviso(/check|email/i.test(error.message) ? "Ese correo no es válido." : explicar(error)); return; }
+    estado.perfil.email = email;
+    await local.guardarMeta("perfil", estado.perfil);
+    aviso(email ? "Correo guardado. Te avisaremos ahí." : "Quitaste tu correo: no recibirás avisos.", "exito");
   });
   app.querySelectorAll("[data-abrir]").forEach(b =>
     b.addEventListener("click", () => abrir(b.dataset.abrir)));
