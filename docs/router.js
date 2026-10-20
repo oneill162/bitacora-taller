@@ -140,7 +140,7 @@ function navegacion(){
 export function pintar(){
   const vistas = { acceso: vistaAcceso, inicio: vistaInicio, panel: vistaPanel, editor: vistaEditor,
                    reporte: vistaReporte, instructor: vistaInstructor, codigo: vistaCodigo };
-  app.innerHTML = barra() + "<main>" + vistas[estado.vista]() + "</main>";
+  app.innerHTML = barra() + `<main data-vista="${estado.vista}">` + vistas[estado.vista]() + "</main>";
   $("#b-salir")?.addEventListener("click", salir);
   app.querySelectorAll("[data-nav]").forEach(b => b.onclick = () => irA(b.dataset.nav));
   ({ acceso: montarAcceso, inicio: montarInicio, panel: montarPanel, editor: montarEditor,

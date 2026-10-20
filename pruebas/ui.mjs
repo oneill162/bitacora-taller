@@ -258,6 +258,28 @@ await prueba("estudiante: su dashboard muestra su trabajo, lo pendiente y sus bo
   await ctx.close();
 });
 
+await prueba("tacto: sin hover pegado, sin destello al tocar, sin retraso, con teclado y esquinas", async () => {
+  const { ctx, page } = await nuevaPagina({ viewport: { width: 375, height: 760 }, isMobile: true, hasTouch: true });
+  await page.goto(URL_APP);
+  await page.waitForSelector("#f-acceso");
+  assert.equal(await page.evaluate(() => matchMedia("(hover: hover) and (pointer: fine)").matches), false);
+  const btn = page.locator("#a-enviar");
+  await btn.hover();                                   // en un teléfono el "hover" queda pegado tras tocar
+  await page.waitForTimeout(260);
+  assert.equal(await btn.evaluate(el => getComputedStyle(el).transform), "none");
+  const estilo = await btn.evaluate(el => ({ ta: getComputedStyle(el).touchAction, us: getComputedStyle(el).userSelect }));
+  assert.equal(estilo.ta, "manipulation");
+  assert.equal(estilo.us, "none");
+  // Chromium de escritorio no expone esta propiedad ya calculada: se comprueba en la hoja de estilo
+  assert.ok((await (await page.request.get(URL_APP + "estilo.css")).text()).includes("-webkit-tap-highlight-color:transparent"));
+  const meta = await page.$eval('meta[name="viewport"]', m => m.content);
+  assert.match(meta, /viewport-fit=cover/); assert.match(meta, /interactive-widget=resizes-content/);
+  assert.equal(await page.locator('meta[name="theme-color"]').count(), 2);
+  const px = await page.$eval("#a-usuario", el => parseFloat(getComputedStyle(el).fontSize));
+  assert.ok(px >= 16, "iOS hace zoom con letra menor de 16px");
+  await ctx.close();
+});
+
 await prueba("estudiante en teléfono: dashboard sin desborde y con navegación a un toque", async () => {
   const { ctx, page } = await nuevaPagina({ viewport: { width: 375, height: 760 }, isMobile: true, hasTouch: true });
   await entrar(page, "luis");
@@ -265,6 +287,7 @@ await prueba("estudiante en teléfono: dashboard sin desborde y con navegación 
   await page.waitForTimeout(900);
   assert.ok(await sinDesborde(page), "desborde en el dashboard");
   assert.ok(await page.locator(".alerta-panel").count() === 1, "Luis tiene una hoja incompleta y debe verse");
+  assert.equal(await page.$eval("main", m => m.dataset.vista), "inicio");
   await page.screenshot({ path: join(CAP, "dashboard-movil.png"), fullPage: true });
   await ctx.close();
 });
