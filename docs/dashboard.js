@@ -14,6 +14,10 @@ import { nuevoDiagnostico } from "./acceso.js";
 import { irA } from "./router.js";
 
 const primerNombre = p => String(p.nombre || p.usuario || "").trim().split(/\s+/)[0] || "";
+// Las pestañas del teléfono: una sección a la vez; en pantalla grande se ven todas juntas
+const pestanasMovil = secciones => `
+  <div class="seg-m" role="tablist" aria-label="Secciones del panel">${secciones.map(([k, t]) => `
+    <button type="button" role="tab" data-sec="${k}" aria-selected="${(estado.seccion || "resumen") === k}">${t}</button>`).join("")}</div>`;
 const hojas = n => `${n} ${n === 1 ? "hoja" : "hojas"}`;
 
 export function vistaInicio(){
@@ -33,7 +37,7 @@ function vistaEstudianteInicio(p){
     <button class="btn ghost" data-nav="panel">Mis diagnósticos</button>`;
 
   if(vacia) return `
-  <div class="pila inicio">
+  <div class="pila inicio" data-sec="resumen">
     <div class="enc"><div><h1>Hola, ${esc(primerNombre(p))}</h1><p>${esc(fechaLarga(hoy()))}</p></div></div>
     <div id="aviso" hidden></div>
     <div class="vacio bienvenida">
@@ -52,7 +56,7 @@ function vistaEstudianteInicio(p){
   ].join("");
 
   const pendientes = pend ? `
-    <section class="panel alerta-panel">
+    <section class="panel alerta-panel" data-s="resumen">
       <h3><b class="exclama">!</b> Completa estas hojas</h3>
       <p class="panel-nota">No entran al informe final hasta que tengan todos sus datos.</p>
       <ul class="lista-acc">${r.pendientes.map(x => `
@@ -70,13 +74,14 @@ function vistaEstudianteInicio(p){
 
   const pts = r.puntos;
   return `
-  <div class="pila inicio">
+  <div class="pila inicio" data-sec="${estado.seccion || "resumen"}">
     <div class="enc">
       <div><h1>Hola, ${esc(primerNombre(p))}</h1><p>${esc(fechaLarga(hoy()))} · tu trabajo en ${hojas(r.hojas)}</p></div>
       <div class="fila">${acciones}</div>
     </div>
     <div id="aviso" hidden></div>
-    <section class="kpis">${tarjetas}</section>
+    ${pestanasMovil([["resumen", "Resumen"], ["graficas", "Gráficas"]])}
+    <section class="kpis" data-s="resumen">${tarjetas}</section>
     ${pendientes}
     <div class="paneles">
       ${panel("Tus veredictos", dona([
@@ -89,7 +94,7 @@ function vistaEstudianteInicio(p){
           { etiqueta: "Observación", valor: pts.obs, color: "--obs" },
           { etiqueta: "Falla", valor: pts.falla, color: "--bad" },
           { etiqueta: "No aplica", valor: pts.na, color: "--ink-3" }]), "Suma de todas tus hojas")}
-      ${panel("Lo más reciente", recientes)}
+      ${panel("Lo más reciente", recientes, "", "resumen")}
     </div>
   </div>`;
 }
@@ -97,7 +102,7 @@ function vistaEstudianteInicio(p){
 /* ================= instructor ================= */
 function vistaInstructorInicio(p){
   return `
-  <div class="pila inicio">
+  <div class="pila inicio" data-sec="${estado.seccion || "resumen"}">
     <div class="enc">
       <div><h1>Panel del taller</h1><p>${esc(fechaLarga(hoy()))} · ${esc(val(p.escuela, "Taller de tecnología"))}</p></div>
       <div class="fila">
@@ -109,6 +114,7 @@ function vistaInstructorInicio(p){
       </div>
     </div>
     <div id="aviso" hidden></div>
+    ${pestanasMovil([["resumen", "Resumen"], ["graficas", "Gráficas"], ["gente", "Gente"]])}
     <div id="dash-cuerpo"><p class="vacio-chico">Cargando el taller…</p></div>
   </div>`;
 }
@@ -127,7 +133,7 @@ function cuerpoInstructor(t, p){
   ].join("");
 
   return `
-    <section class="kpis">${tarjetas}</section>
+    <section class="kpis" data-s="resumen">${tarjetas}</section>
     <div class="paneles">
       ${panel("Entregas, últimos 14 días", columnas(t.dias, { cada: 2, unidad: "entrega" }))}
       ${panel("Veredictos", dona([
@@ -139,7 +145,7 @@ function cuerpoInstructor(t, p){
       ${panel("Equipos por salón", barrasH(t.porSalon, { vacio: "Aún no hay equipos." }))}
       ${panel("Equipos por marca", barrasH(t.porMarca, { vacio: "Aún no hay equipos." }))}
     </div>
-    <section class="panel">
+    <section class="panel" data-s="gente">
       <h3>Usuarios registrados</h3>
       <div class="filtros no-print">
         <label class="f">Buscar<input id="d-buscar" placeholder="nombre, usuario o grupo"></label>
@@ -164,7 +170,15 @@ function tablaUsuarios(d, q){
       <td class="num">${d.diagnosticos.filter(h => h.autor_id === u.id).length}</td>
       <td class="num">${esc(ultima(u.id))}</td></tr>`).join("");
   if(!filas) return `<p class="vacio-chico">Nadie coincide con esa búsqueda.</p>`;
-  return `<div class="tabla-envoltura"><table class="datos">
+  const tarjetasUsuarios = Object.values(d.porId)
+    .filter(u => !t || `${u.nombre} ${u.usuario} ${u.grupo}`.toLowerCase().includes(t))
+    .sort((a, b) => String(a.nombre || a.usuario).localeCompare(String(b.nombre || b.usuario), "es"))
+    .map(u => `<li><b>${esc(u.nombre || u.usuario)}</b>
+      <small>${esc(u.grupo || "Sin grupo")} · ${u.es_superusuario ? "Superusuario" : u.rol === "instructor" ? "Instructor" : "Estudiante"} · ${
+        d.diagnosticos.filter(h => h.autor_id === u.id).length} hojas</small>
+      ${u.email ? `<small>${esc(u.email)}</small>` : ""}${
+        u.solicita_instructor && u.rol !== "instructor" ? '<span class="pill" data-v="obs">Pide ser instructor</span>' : ""}</li>`).join("");
+  return `<ul class="lista-usuarios">${tarjetasUsuarios}</ul><div class="tabla-envoltura"><table class="datos">
     <thead><tr><th>Nombre</th><th>Grupo</th><th>Rol</th><th>Correo</th><th>Hojas</th><th>Última</th></tr></thead>
     <tbody>${filas}</tbody></table></div>`;
 }
@@ -177,6 +191,11 @@ const irPestana = clave => {
 };
 
 export async function montarInicio(){
+  app.querySelectorAll(".seg-m button").forEach(b => b.onclick = () => {
+    estado.seccion = b.dataset.sec;
+    $(".inicio").dataset.sec = b.dataset.sec;
+    app.querySelectorAll(".seg-m button").forEach(x => x.setAttribute("aria-selected", String(x === b)));
+  });
   $("#d-nuevo")?.addEventListener("click", nuevoDiagnostico);
   $("#d-borrador")?.addEventListener("click", ev => abrir(ev.currentTarget.dataset.id));
   app.querySelectorAll("[data-abrir]").forEach(b => b.onclick = () => abrir(b.dataset.abrir));

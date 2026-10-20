@@ -16,8 +16,9 @@ export function kpi({ valor, etiqueta, sub = "", tono = "", ir = "", id = "" }) 
     : `<div class="${clase}"${id ? ` id="${esc(id)}"` : ""}>${cuerpo}</div>`;
 }
 
-export const panel = (titulo, cuerpo, nota = "") => `
-  <section class="panel">
+// `sec` dice en qué pestaña del dashboard del teléfono vive (resumen | graficas | gente)
+export const panel = (titulo, cuerpo, nota = "", sec = "graficas") => `
+  <section class="panel" data-s="${sec}">
     <h3>${esc(titulo)}</h3>${nota ? `<p class="panel-nota">${esc(nota)}</p>` : ""}
     ${cuerpo}
   </section>`;

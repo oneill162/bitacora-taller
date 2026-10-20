@@ -227,6 +227,9 @@ await prueba("instructor: panel, tablero, Gente e Incompletos abren y marcan lo 
 await prueba("instructor en teléfono: tablero, Gente e informes sin desborde de página", async () => {
   const { ctx, page } = await nuevaPagina({ viewport: { width: 375, height: 760 }, isMobile: true, hasTouch: true });
   await entrar(page);
+  await page.waitForSelector(".kpi");
+  assert.ok(await sinDesborde(page), "desborde en el dashboard del instructor");
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth), 375, "el ancho de la página debe ser el del teléfono");
   await page.click('[data-nav="instructor"]');
   await page.waitForSelector("#p-gente");
   assert.ok(await sinDesborde(page), "desborde en el tablero");
@@ -289,6 +292,44 @@ await prueba("estudiante en teléfono: dashboard sin desborde y con navegación 
   assert.ok(await page.locator(".alerta-panel").count() === 1, "Luis tiene una hoja incompleta y debe verse");
   assert.equal(await page.$eval("main", m => m.dataset.vista), "inicio");
   await page.screenshot({ path: join(CAP, "dashboard-movil.png"), fullPage: true });
+  await ctx.close();
+});
+
+await prueba("dashboard del teléfono: una sección a la vez, barra de abajo y lista de usuarios", async () => {
+  const { ctx, page, errores } = await nuevaPagina({ viewport: { width: 375, height: 760 }, isMobile: true, hasTouch: true });
+  await entrar(page);
+  await page.waitForSelector(".kpi");
+  await page.waitForTimeout(700);
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth), 375);
+  const pos = await page.$eval(".nav", el => getComputedStyle(el).position);
+  assert.equal(pos, "fixed", "la navegación va abajo en el teléfono");
+  assert.ok(await page.locator(".seg-m").isVisible(), "faltan las pestañas del dashboard");
+  assert.ok(await page.locator(".kpis").isVisible());
+  assert.equal(await page.locator(".dona").first().isVisible(), false, "las gráficas no deben verse en Resumen");
+  await page.screenshot({ path: join(CAP, "movil-resumen.png") });
+  await page.click('.seg-m [data-sec="graficas"]');
+  assert.ok(await page.locator(".dona").first().isVisible(), "Gráficas debe mostrar las gráficas");
+  assert.equal(await page.locator(".kpis").isVisible(), false);
+  await page.waitForTimeout(600);
+  await page.screenshot({ path: join(CAP, "movil-graficas.png"), fullPage: true });
+  await page.click('.seg-m [data-sec="gente"]');
+  assert.ok(await page.locator(".lista-usuarios li").first().isVisible(), "la gente va como lista de etiquetas");
+  assert.equal(await page.locator(".tabla-envoltura").first().isVisible(), false, "sin tabla ancha en el teléfono");
+  await page.screenshot({ path: join(CAP, "movil-gente.png"), fullPage: true });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth), 375);
+  assert.deepEqual(errores, []);
+  await ctx.close();
+});
+
+await prueba("pantalla grande: el dashboard se ve completo, sin pestañas de teléfono", async () => {
+  const { ctx, page } = await nuevaPagina();
+  await entrar(page);
+  await page.waitForSelector(".kpi");
+  assert.equal(await page.locator(".seg-m").isVisible(), false);
+  assert.ok(await page.locator(".dona").first().isVisible() && await page.locator(".kpis").isVisible());
+  assert.notEqual(await page.$eval(".nav", el => getComputedStyle(el).position), "fixed");
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: join(CAP, "escritorio-instructor.png"), fullPage: true });
   await ctx.close();
 });
 

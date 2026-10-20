@@ -132,14 +132,20 @@ function navegacion(){
   if(!p) return "";
   const activa = estado.vista === "reporte" ? (estado.ajena ? "instructor" : "panel")
     : Object.keys(NAV).find(k => NAV[k].includes(estado.vista));
-  const b = (k, t) => `<button type="button" class="nav-b" data-nav="${k}"${activa === k ? ' aria-current="page"' : ""}>${t}</button>`;
+  const ICONO = {
+    inicio: '<path d="M3 11.5 12 4l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
+    panel: '<path d="M6 3h9l4 4v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM9 12h6M9 16h6"/>',
+    instructor: '<path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/>'
+  };
+  const b = (k, t) => `<button type="button" class="nav-b" data-nav="${k}"${activa === k ? ' aria-current="page"' : ""}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONO[k]}</svg><span>${t}</span></button>`;
   return `<nav class="nav no-print" aria-label="Secciones"><div class="nav-in">${b("inicio", "Inicio")}${
-    b("panel", "Mis diagnósticos")}${p.rol === "instructor" ? b("instructor", "El taller") : ""}</div></nav>`;
+    b("panel", "Mis hojas")}${p.rol === "instructor" ? b("instructor", "El taller") : ""}</div></nav>`;
 }
 
 export function pintar(){
   const vistas = { acceso: vistaAcceso, inicio: vistaInicio, panel: vistaPanel, editor: vistaEditor,
                    reporte: vistaReporte, instructor: vistaInstructor, codigo: vistaCodigo };
+  app.dataset.vista = estado.vista;
   app.innerHTML = barra() + `<main data-vista="${estado.vista}">` + vistas[estado.vista]() + "</main>";
   $("#b-salir")?.addEventListener("click", salir);
   app.querySelectorAll("[data-nav]").forEach(b => b.onclick = () => irA(b.dataset.nav));
