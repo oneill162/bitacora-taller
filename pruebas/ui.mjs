@@ -20,10 +20,10 @@ mkdirSync(CAP, { recursive: true });
 
 const b64 = o => Buffer.from(JSON.stringify(o)).toString("base64url");
 const jwt = `${b64({ alg: "HS256", typ: "JWT" })}.${b64({ sub: "i1", role: "authenticated", exp: 4102444800 })}.firma`;
-const usuario = { id: "i1", aud: "authenticated", role: "authenticated", email: "prof@taller.local",
+let usuario = { id: "i1", aud: "authenticated", role: "authenticated", email: "prof@taller.local",
                   app_metadata: {}, user_metadata: {}, created_at: "2026-09-01T00:00:00Z" };
-const sesion = { access_token: jwt, token_type: "bearer", expires_in: 3600,
-                 expires_at: 4102444800, refresh_token: "r", user: usuario };
+const sesion = () => ({ access_token: jwt, token_type: "bearer", expires_in: 3600,
+                 expires_at: 4102444800, refresh_token: "r", user: usuario });
 
 const PERFILES = [
   { id: "i1", usuario: "prof", nombre: "Profe Demo", grupo: "TESI 2", escuela: "Plantel", rol: "instructor",
@@ -58,12 +58,20 @@ async function simularSupabase(ctx) {
         "access-control-allow-headers": route.request().headers()["access-control-request-headers"] || "*",
         "access-control-allow-methods": "*" } });
     if (u.pathname.includes("/auth/v1/health")) return json({});
-    if (u.pathname.includes("/auth/v1/token")) return json(sesion);
+    if (u.pathname.includes("/auth/v1/token")) {
+      const quien = JSON.parse(route.request().postData() || "{}").email?.split("@")[0];
+      const p = PERFILES.find(x => x.usuario === quien) || PERFILES[0];
+      usuario = { ...usuario, id: p.id, email: `${p.usuario}@taller.local` };
+      return json(sesion());
+    }
     if (u.pathname.includes("/auth/v1/user")) return json(usuario);
     if (u.pathname.includes("/auth/v1/logout")) return json({});
     if (u.pathname.includes("/functions/v1/")) return json({ ok: true });
     const tabla = u.pathname.split("/rest/v1/")[1];
-    const datos = { perfiles: PERFILES, equipos: EQUIPOS, diagnosticos: DIAGS, puntos: [] }[tabla];
+    const yoPerfil = PERFILES.find(x => x.id === usuario.id);
+    // como RLS: el estudiante solo ve sus hojas
+    const diagsVisibles = yoPerfil?.rol === "instructor" ? DIAGS : DIAGS.filter(d => d.autor_id === usuario.id);
+    const datos = { perfiles: PERFILES, equipos: EQUIPOS, diagnosticos: diagsVisibles, puntos: [] }[tabla];
     if (!datos) return json([]);
     const objeto = (route.request().headers().accept || "").includes("vnd.pgrst.object");
     const id = u.searchParams.get("id")?.replace("eq.", "");
@@ -92,12 +100,12 @@ async function nuevaPagina(opts = {}) {
   page.on("console", m => { if (m.type() === "error" && !/ERR_FAILED|fonts/.test(m.text())) errores.push(m.text()); });
   return { ctx, page, errores };
 }
-const entrar = async page => {
+const entrar = async (page, quien = "prof") => {
   await page.goto(URL_APP);
-  await page.fill("#a-usuario", "prof");
+  await page.fill("#a-usuario", quien);
   await page.fill("#a-clave", "secreta1");
   await page.click("#a-enviar");
-  await page.waitForSelector("text=Mis diagnósticos", { timeout: 8000 }).catch(async e => {
+  await page.waitForSelector(".inicio", { timeout: 8000 }).catch(async e => {
     console.log("DEBUG:", await page.evaluate(() => [document.querySelector("#aviso")?.textContent,
       document.querySelector("h1")?.textContent, document.querySelector("#a-enviar")?.disabled].join(" | ")));
     throw e; });
@@ -174,9 +182,22 @@ await prueba("teléfono (375px): nada se sale de la pantalla en entrada ni en re
 await prueba("instructor: panel, tablero, Gente e Incompletos abren y marcan lo incompleto", async () => {
   const { ctx, page, errores } = await nuevaPagina();
   await entrar(page);
-  await page.waitForTimeout(450);
-  await page.screenshot({ path: join(CAP, "panel.png") });
-  await page.click("#b-instructor");
+  await page.waitForSelector(".kpi");
+  await page.waitForSelector("#d-usuarios");
+  await page.waitForTimeout(900);
+  await page.screenshot({ path: join(CAP, "dashboard-instructor.png"), fullPage: true });
+  assert.ok(await page.locator(".kpi").count() >= 6, "faltan tarjetas de cifras (con superusuario son 6)");
+  assert.ok(await page.locator(".dona .arco").count() >= 1, "falta la gráfica de veredictos");
+  assert.ok(await page.locator(".hb-f").count() >= 1, "faltan las barras de equipos");
+  assert.ok((await page.textContent("#d-usuarios")).includes("Ana Rivera"), "falta la lista de usuarios");
+  await page.fill("#d-buscar", "luis");
+  assert.ok(!(await page.textContent("#d-usuarios")).includes("Ana Rivera"), "la búsqueda no filtra");
+  await page.fill("#d-buscar", "");
+  await page.click('.kpi[data-ir="informes:incompletos"]');
+  await page.waitForSelector(".grupo-falta");        // el botón lleva directo al informe
+  await page.click('[data-nav="inicio"]');
+  await page.waitForSelector(".kpi");
+  await page.click('[data-nav="instructor"]');
   await page.waitForSelector("#p-gente");
   await page.waitForSelector(".fila-t");
   assert.ok(await page.locator(".fila-falta").count() >= 1, "falta marcar en rojo la hoja incompleta");
@@ -206,7 +227,7 @@ await prueba("instructor: panel, tablero, Gente e Incompletos abren y marcan lo 
 await prueba("instructor en teléfono: tablero, Gente e informes sin desborde de página", async () => {
   const { ctx, page } = await nuevaPagina({ viewport: { width: 375, height: 760 }, isMobile: true, hasTouch: true });
   await entrar(page);
-  await page.click("#b-instructor");
+  await page.click('[data-nav="instructor"]');
   await page.waitForSelector("#p-gente");
   assert.ok(await sinDesborde(page), "desborde en el tablero");
   await page.click("#p-gente");
@@ -214,6 +235,37 @@ await prueba("instructor en teléfono: tablero, Gente e informes sin desborde de
   assert.ok(await sinDesborde(page), "desborde en Gente");
   await page.waitForTimeout(500);
   await page.screenshot({ path: join(CAP, "gente-movil.png") });
+  await ctx.close();
+});
+
+await prueba("estudiante: su dashboard muestra su trabajo, lo pendiente y sus botones", async () => {
+  const { ctx, page, errores } = await nuevaPagina();
+  await entrar(page, "ana");
+  await page.waitForSelector(".kpi");
+  await page.waitForTimeout(900);
+  await page.screenshot({ path: join(CAP, "dashboard-estudiante.png"), fullPage: true });
+  assert.ok((await page.textContent("h1")).includes("Ana"));
+  assert.ok(await page.locator("#d-nuevo").count() === 1, "falta el botón Nuevo diagnóstico");
+  assert.equal(await page.locator('[data-nav="instructor"]').count(), 0, "un estudiante no debe ver El taller");
+  assert.ok(await page.locator(".dona .arco").count() >= 1);
+  assert.ok(await page.locator(".cols .col").count() === 8, "8 semanas de actividad");
+  assert.ok((await page.textContent(".kpis")).includes("95"), "falta la nota media");
+  await page.click('[data-nav="panel"]');
+  await page.waitForSelector(".tarjeta");
+  await page.click('[data-nav="inicio"]');
+  await page.waitForSelector(".kpi");
+  assert.deepEqual(errores, []);
+  await ctx.close();
+});
+
+await prueba("estudiante en teléfono: dashboard sin desborde y con navegación a un toque", async () => {
+  const { ctx, page } = await nuevaPagina({ viewport: { width: 375, height: 760 }, isMobile: true, hasTouch: true });
+  await entrar(page, "luis");
+  await page.waitForSelector(".kpi");
+  await page.waitForTimeout(900);
+  assert.ok(await sinDesborde(page), "desborde en el dashboard");
+  assert.ok(await page.locator(".alerta-panel").count() === 1, "Luis tiene una hoja incompleta y debe verse");
+  await page.screenshot({ path: join(CAP, "dashboard-movil.png"), fullPage: true });
   await ctx.close();
 });
 

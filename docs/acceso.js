@@ -202,28 +202,32 @@ export function vistaPanel(){
   </div>`;
 }
 
+// La hoja nace en el equipo del estudiante, con su id ya puesto. Así se
+// puede empezar un diagnóstico en un taller sin señal y subirlo después:
+// el id no lo tiene que inventar Supabase.
+export async function nuevoDiagnostico(){
+  const d = {
+    id: local.nuevoId(),
+    autor_id: estado.perfil.id,
+    equipo_id: null,
+    fecha: hoy(),
+    orden: "DX-" + hoy().replace(/-/g,"").slice(2) + "-" + String(estado.lista.length + 1).padStart(2,"0"),
+    usuario_equipo: "", sistema: "", estado: "borrador", veredicto: "", conteo: {},
+    acciones: "", hallazgos: "", proximo_paso: "",
+    creado_en: new Date().toISOString(), entregado_en: null
+  };
+  await local.guardarDiag(d);
+  estado.diag = d; estado.equipo = null; estado.puntos = {};
+  estado.vista = "editor"; pintar();
+  empujar();
+}
+
 export function montarPanel(){
   // La hoja nace en el equipo del estudiante, con su id ya puesto. Así se
   // puede empezar un diagnóstico en un taller sin señal y subirlo después:
   // el id no lo tiene que inventar Supabase.
-  const nuevo = async () => {
-    const d = {
-      id: local.nuevoId(),
-      autor_id: estado.perfil.id,
-      equipo_id: null,
-      fecha: hoy(),
-      orden: "DX-" + hoy().replace(/-/g,"").slice(2) + "-" + String(estado.lista.length + 1).padStart(2,"0"),
-      usuario_equipo: "", sistema: "", estado: "borrador", veredicto: "", conteo: {},
-      acciones: "", hallazgos: "", proximo_paso: "",
-      creado_en: new Date().toISOString(), entregado_en: null
-    };
-    await local.guardarDiag(d);
-    estado.diag = d; estado.equipo = null; estado.puntos = {};
-    estado.vista = "editor"; pintar();
-    empujar();
-  };
-  $("#b-nuevo")?.addEventListener("click", nuevo);
-  $("#b-nuevo-2")?.addEventListener("click", nuevo);
+  $("#b-nuevo")?.addEventListener("click", nuevoDiagnostico);
+  $("#b-nuevo-2")?.addEventListener("click", nuevoDiagnostico);
   $("#b-codigo")?.addEventListener("click", async () => {
     estado.vista = "codigo"; pintar();
     await cargarCodigoClase();

@@ -336,3 +336,18 @@ de servidor sin JWT. Verificado después del arreglo:
   desde el navegador: una entrega hecha sin señal avisa al subir, y si se cierra la app justo
   antes, ese aviso se pierde.
 - Funciones: `registro`, `gestion` y `avisar` (`supabase functions deploy <nombre>`).
+
+## El dashboard
+
+Al entrar se abre **Inicio**, distinto según quién seas (así lo hacen los sistemas de
+inventario y de aula: una vista por rol, pocas cifras arriba y todo con salida a donde se arregla):
+
+- **Estudiante:** sus hojas, borradores, lo que le falta completar, nota media, veredictos,
+  actividad por semana y puntos evaluados. Botones: *Nuevo diagnóstico*, *Continuar borrador*,
+  *Completar* en cada hoja a medias. Sale del teléfono: funciona sin señal.
+- **Instructor / superusuario:** cifras clicables (estudiantes, entregadas, equipos, incompletos,
+  sin calificar y, para el superusuario, solicitudes de instructor), entregas de 14 días,
+  veredictos, quién trabaja más, qué se les olvida, equipos por salón y por marca, y la lista de
+  usuarios con buscador. Necesita conexión.
+- Las cifras salen de `docs/resumen.js` (puro; `node pruebas/resumen.mjs`) y las gráficas son
+  HTML/SVG propio (`docs/graficas.js`), sin librerías. Cada una lleva su cifra escrita.

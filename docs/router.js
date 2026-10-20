@@ -1,10 +1,12 @@
 import { NOMBRE_TALLER } from "./config.js";
 import * as local from "./local.js";
-import { sb, $, app, estado, esc, aviso, explicar, conCorte, servidor, conectado, supabaseResponde, pintarConexion, empujar } from "./nucleo.js";
+import { sb, $, app, estado, esc, hoy, aviso, explicar, conCorte, servidor, conectado, supabaseResponde, pintarConexion, empujar } from "./nucleo.js";
 import { vistaAcceso, montarAcceso, cargarLista, vistaPanel, montarPanel } from "./acceso.js";
-import { vistaEditor, montarEditor, vistaReporte, montarReporte } from "./editor.js";
+import { vistaEditor, montarEditor, vistaReporte, montarReporte, guardar } from "./editor.js";
+import { cargarTaller } from "./tablero.js";
 import { vistaInstructor, montarInstructor } from "./admin.js";
-import { vistaCodigo, montarCodigo } from "./codigo.js";
+import { vistaCodigo, montarCodigo, cargarCodigoClase } from "./codigo.js";
+import { vistaInicio, montarInicio } from "./dashboard.js";
 
 /* ================= arranque ================= */
 export async function iniciar(){
@@ -71,7 +73,7 @@ export async function cargarPerfil(id, reintento = 0){
 
 export async function usarPerfil(p){
   estado.perfil = p;
-  estado.vista = "panel";
+  estado.vista = "inicio";
   await cargarLista();
 }
 
@@ -99,15 +101,49 @@ export function barra(){
       <div class="quien"><b>${esc(p.nombre || p.usuario)}</b>${esc(p.usuario)}${
       p.rol === "instructor" ? " · instructor" : ""}</div>
       <button class="btn ghost chico" id="b-salir">Salir</button>` : ""}
-  </div></header>`;
+  </div>${navegacion()}</header>`;
+}
+
+// A dónde lleva cada botón de navegación. Salir del editor guarda antes: el
+// autoguardado espera 800 ms y no se puede perder lo escrito en ese rato.
+export async function irA(destino, opc = {}){
+  if(estado.vista === "editor"){ clearTimeout(estado.pendiente); await guardar(); }
+  clearInterval(estado.latido); estado.latido = null;
+  estado.ajena = false; estado.autor = estado.perfil; estado.diag = null;
+  aviso("");
+  if(destino === "inicio"){ estado.vista = "inicio"; pintar(); return; }
+  if(destino === "panel"){ await cargarLista(); estado.vista = "panel"; pintar(); return; }
+  if(destino === "codigo"){
+    estado.vista = "codigo"; pintar();
+    await cargarCodigoClase();
+    if(estado.codigoClase) pintar();
+    return;
+  }
+  // el taller del instructor
+  estado.pestana = opc.pestana || "hoy";
+  if(opc.informe) estado.informe = opc.informe;
+  if(!estado.taller) estado.taller = { fecha: hoy(), grupo: "", estudiantes: [], hojas: [] };
+  estado.vista = "instructor"; pintar(); await cargarTaller();
+}
+
+const NAV = { inicio: ["inicio"], panel: ["panel", "editor"], instructor: ["instructor", "codigo"] };
+function navegacion(){
+  const p = estado.perfil;
+  if(!p) return "";
+  const activa = estado.vista === "reporte" ? (estado.ajena ? "instructor" : "panel")
+    : Object.keys(NAV).find(k => NAV[k].includes(estado.vista));
+  const b = (k, t) => `<button type="button" class="nav-b" data-nav="${k}"${activa === k ? ' aria-current="page"' : ""}>${t}</button>`;
+  return `<nav class="nav no-print" aria-label="Secciones"><div class="nav-in">${b("inicio", "Inicio")}${
+    b("panel", "Mis diagnósticos")}${p.rol === "instructor" ? b("instructor", "El taller") : ""}</div></nav>`;
 }
 
 export function pintar(){
-  const vistas = { acceso: vistaAcceso, panel: vistaPanel, editor: vistaEditor,
+  const vistas = { acceso: vistaAcceso, inicio: vistaInicio, panel: vistaPanel, editor: vistaEditor,
                    reporte: vistaReporte, instructor: vistaInstructor, codigo: vistaCodigo };
   app.innerHTML = barra() + "<main>" + vistas[estado.vista]() + "</main>";
   $("#b-salir")?.addEventListener("click", salir);
-  ({ acceso: montarAcceso, panel: montarPanel, editor: montarEditor,
+  app.querySelectorAll("[data-nav]").forEach(b => b.onclick = () => irA(b.dataset.nav));
+  ({ acceso: montarAcceso, inicio: montarInicio, panel: montarPanel, editor: montarEditor,
      reporte: montarReporte, instructor: montarInstructor, codigo: montarCodigo })[estado.vista]();
   pintarConexion();
   window.scrollTo(0, 0);
