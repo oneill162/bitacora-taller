@@ -83,3 +83,16 @@ es que el sincronizador escriba los campos que esas consultas piden (`salon`,
 `completa`, `falta`). Si alguna tabla sale vacía al abrir el vault, mira
 primero si las notas de `04-Diagnosticos` traen esos campos: son nuevos, así
 que hace falta una corrida de `sync.mjs` para que aparezcan en las viejas.
+
+## La interfaz (Playwright)
+
+```bash
+npm install --no-save --no-package-lock playwright   # una vez; no toca el repo
+node pruebas/ui.mjs
+```
+
+Usa Edge o Chrome ya instalados y un Supabase de mentira (`page.route`). Comprueba que
+las pantallas carguen sin errores, que botones y entradas se muevan como se diseñó y se
+apaguen con "reducir movimiento", que nada desborde en 375 px y que el instructor vea
+Gente e Incompletos con lo incompleto marcado en rojo. Deja capturas en
+`pruebas/capturas/` (no se versionan).

@@ -51,7 +51,6 @@ p{margin:0}
 a{color:var(--accent)}
 :focus-visible{outline:2.5px solid var(--accent);outline-offset:2px;border-radius:3px}
 [hidden]{display:none!important}
-@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 
 /* ---------------- estructura ---------------- */
 .barra{position:sticky;top:0;z-index:20;background:var(--surface);border-bottom:1px solid var(--rule)}
@@ -396,3 +395,131 @@ table.datos tr:hover td{background:var(--surface)}
 .correo{align-items:flex-end;gap:.5rem;margin:.5rem 0}
 .calificar{border:1px solid var(--rule);padding:.75rem;margin:.75rem 0;display:flex;flex-direction:column;gap:.5rem}
 .nota-final{border-left:3px solid var(--ok);padding:.4rem .75rem;margin:.75rem 0;background:var(--ok-bg)}
+
+/* =====================================================================
+   Capa moderna. Misma paleta y mismas fuentes; cambian las formas, las
+   sombras y el movimiento. Todo el movimiento es transform/opacity
+   (clip-path en las barras), curvas fuertes de salida y menos de 300 ms.
+   El hover va detrás de (hover:hover) para que el tacto no lo dispare.
+   ===================================================================== */
+:root{
+  --ease-out:cubic-bezier(.23,1,.32,1);
+  --r:10px; --r-lg:14px;
+  --glow:color-mix(in srgb,var(--accent) 16%,transparent);
+  --glow-2:color-mix(in srgb,var(--marker) 12%,transparent);
+  --lift:0 2px 4px rgba(22,28,25,.06),0 14px 26px -16px rgba(22,28,25,.38);
+}
+:root[data-theme="dark"]{ --lift:0 2px 4px rgba(0,0,0,.35),0 16px 28px -16px #000 }
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){ --lift:0 2px 4px rgba(0,0,0,.35),0 16px 28px -16px #000 }
+}
+
+/* fondo: dos luces suaves que derivan despacio, detrás de todo */
+body{position:relative;min-height:100vh;min-height:100dvh}
+body::before{content:"";position:fixed;inset:-25vmax;z-index:-1;pointer-events:none;
+  background:
+    radial-gradient(45vmax 45vmax at 14% 8%,var(--glow),transparent 70%),
+    radial-gradient(40vmax 40vmax at 88% 90%,var(--glow-2),transparent 70%);
+  animation:deriva 48s ease-in-out infinite alternate}
+@keyframes deriva{to{transform:translate3d(4vmax,3vmax,0) scale(1.08)}}
+
+/* barra de arriba: vidrio esmerilado */
+.barra{background:color-mix(in srgb,var(--surface) 78%,transparent);
+  -webkit-backdrop-filter:saturate(1.5) blur(14px);backdrop-filter:saturate(1.5) blur(14px);
+  border-bottom-color:color-mix(in srgb,var(--rule) 70%,transparent)}
+.marca strong{display:flex;align-items:center;gap:.5rem}
+.marca strong::before{content:"";flex:none;width:.55rem;height:.55rem;border-radius:3px;
+  background:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+
+/* superficies */
+.acceso,.ficha,.filtros,.vacio,.hoja,.tabla-envoltura,.resumen,.calificar,.grafica{border-radius:var(--r-lg)}
+.acceso{position:relative;overflow:hidden;box-shadow:var(--lift)}
+.acceso::before{content:"";position:absolute;inset:0 0 auto 0;height:3px;
+  background:linear-gradient(90deg,var(--accent),var(--accent-2),var(--marker))}
+.hoja,.cartel{box-shadow:var(--lift)}
+.resumen{border-radius:var(--r-lg) var(--r-lg) 0 0}
+.enc{border-bottom-width:1px;border-bottom-color:var(--rule)}
+.enc h1{font-size:1.5rem}
+
+/* botones */
+.btn{border-radius:var(--r);
+  background-image:linear-gradient(180deg,rgba(255,255,255,.16),rgba(255,255,255,0));
+  box-shadow:0 1px 0 rgba(255,255,255,.14) inset,0 8px 16px -10px var(--accent);
+  transition:transform .16s var(--ease-out),box-shadow .2s var(--ease-out),
+    background-color .2s ease,border-color .2s ease,color .2s ease}
+.btn.ghost,.btn.peligro{background-image:none;box-shadow:none}
+.btn:active:not(:disabled){transform:scale(.97);transition-duration:.08s}
+@media (hover:hover) and (pointer:fine){
+  .btn:hover:not(:disabled){transform:translateY(-1px);
+    box-shadow:0 1px 0 rgba(255,255,255,.14) inset,0 12px 20px -10px var(--accent)}
+  .btn.ghost:hover:not(:disabled),.btn.peligro:hover:not(:disabled){box-shadow:var(--lift)}
+  .btn:active:not(:disabled){transform:scale(.97)}
+}
+
+/* campos */
+input,select,textarea{border-radius:8px;
+  transition:border-color .18s ease,box-shadow .18s var(--ease-out),background-color .18s ease}
+input:hover,select:hover,textarea:hover{border-color:var(--ink-3)}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent);
+  box-shadow:0 0 0 3px var(--accent-soft)}
+input[type=checkbox]{accent-color:var(--accent)}
+
+/* conmutadores y pestañas */
+.conmuta{border-radius:var(--r);padding:.22rem}
+.conmuta button{border-radius:8px;
+  transition:background-color .2s ease,color .2s ease,box-shadow .2s var(--ease-out),transform .12s var(--ease-out)}
+.conmuta button:active{transform:scale(.97)}
+.conmuta button[aria-pressed="true"]{box-shadow:0 1px 2px rgba(0,0,0,.14),0 4px 10px -6px rgba(0,0,0,.3)}
+@media (hover:hover) and (pointer:fine){
+  .conmuta button[aria-pressed="false"]:hover{color:var(--ink);background:color-mix(in srgb,var(--raise) 55%,transparent)}
+}
+
+/* tarjetas y filas */
+.tarjeta,.fila-t,.hoja-linea{border-radius:var(--r-lg);
+  transition:transform .2s var(--ease-out),box-shadow .22s var(--ease-out),
+    border-color .18s ease,background-color .18s ease}
+.fila-t,.hoja-linea{border-radius:var(--r)}
+.tarjeta:active,button.fila-t:active,.hoja-linea:active{transform:scale(.992);transition-duration:.08s}
+@media (hover:hover) and (pointer:fine){
+  .tarjeta:hover{transform:translateY(-2px);box-shadow:var(--lift)}
+  button.fila-t:hover,.hoja-linea:hover{transform:translateY(-1px);box-shadow:var(--lift)}
+}
+.pill{border-radius:999px;padding:.22rem .55rem}
+.rrow em{border-radius:6px}
+.seg{border-radius:var(--r);overflow:hidden}
+.seg label{transition:background-color .16s ease,color .16s ease}
+.vered{border-radius:0 8px 8px 0}
+.rveredicto{border-radius:var(--r-lg)}
+.error,.exito{border-radius:8px}
+.ajena{border-radius:8px}
+table.datos tr td{transition:background-color .15s ease}
+table.datos th:first-child{border-top-left-radius:var(--r)}
+table.datos th:last-child{border-top-right-radius:var(--r)}
+
+/* entrada de pantallas: una vez, escalonada, sin tocar lo que se refresca solo */
+@keyframes entra{from{opacity:0;transform:translateY(8px)}}
+@keyframes aparece{from{opacity:0}}
+.acceso,.pila>*{animation:entra .34s var(--ease-out) backwards}
+.pila>:nth-child(2){animation-delay:40ms}
+.pila>:nth-child(3){animation-delay:80ms}
+.pila>:nth-child(4){animation-delay:120ms}
+.pila>:nth-child(5){animation-delay:160ms}
+.pila>:nth-child(n+6){animation-delay:200ms}
+.error,.exito{animation:entra .24s var(--ease-out) backwards}
+/* las barras de la gráfica se dibujan de izquierda a derecha */
+@keyframes crece{from{clip-path:inset(0 100% 0 0)}to{clip-path:inset(0)}}
+.g-barra i{animation:crece .7s var(--ease-out) backwards}
+.g-barra i.s2{animation-delay:.12s}
+
+/* movimiento reducido: sin desplazamientos ni deriva; los fundidos se quedan */
+@media (prefers-reduced-motion:reduce){
+  body::before{animation:none}
+  .acceso,.pila>*,.error,.exito{animation-name:aparece;animation-delay:0s}
+  .g-barra i{animation:none}
+  .btn:hover:not(:disabled),.btn:active:not(:disabled),.tarjeta:hover,.tarjeta:active,
+  button.fila-t:hover,.hoja-linea:hover,.conmuta button:active{transform:none}
+}
+@media print{
+  body::before{display:none}
+  .acceso,.pila>*,.g-barra i{animation:none}
+}

@@ -471,7 +471,7 @@ export function vistaGente(){
       <td>${p.es_superusuario ? "Superusuario" : esInst ? "Instructor" : "Estudiante"}${
         p.solicita_instructor && !esInst ? ' <span class="pill" data-v="obs">Pide ser instructor</span>' : ""}</td>
       <td class="num">${hojas(p.id)}</td>
-      <td class="fila">${botones}</td>
+      <td><div class="fila">${botones}</div></td>
     </tr>`;
   }).join("");
   return `
