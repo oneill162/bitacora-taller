@@ -1,59 +1,109 @@
-import { DOMINIO_LOGIN, NOMBRE_TALLER } from "./config.js";
+import { DOMINIO_LOGIN } from "./config.js";
 import { VEREDICTOS } from "./protocolo.js";
 import * as local from "./local.js";
 import { sb, $, app, estado, esc, hoy, fechaLarga, val, aviso, explicar, esDeRed, conCorte, servidor, conectado, empujar } from "./nucleo.js";
 import { cargarPerfil, pintar } from "./router.js";
-import { abrir, guardar, loQueFalta } from "./editor.js";
+import { abrir, loQueFalta } from "./editor.js";
 import { cargarCodigoClase } from "./codigo.js";
 import { cargarTaller } from "./tablero.js";
+import { RECINTOS, recintoActual, recintoRecordado, cambiarRecinto, tilesRecinto, selectorRecinto, ilustracion, placaHero, lemaHero, chipEstado, glifo } from "./campus.js";
 
 /* ================= acceso ================= */
+// El titular de la entrada cambia con el recinto. Los tres están en el marcado y el CSS muestra el del recinto
+// activo: cambiar de recinto no vuelve a pintar nada (y el titular nuevo sube de su propia línea al aparecer).
+const TITULOS = Object.fromEntries(Object.values(RECINTOS).map(r => [r.id, r.titulo]));
+const FLECHA = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
+
+let tiles, selector;
+
 export function vistaAcceso(){
+  tiles = tilesRecinto();
+  selector = selectorRecinto();
+  const titulos = Object.entries(TITULOS).map(([id, [a, b]]) => `
+        <h1 class="h1 e-h1" data-t="${id}"><span class="sr">Bitácora de diagnóstico. </span><span class="linea"><span>${esc(a)}</span></span> <span class="linea"><span>${esc(b)}</span></span></h1>`).join("");
+  // «Sin elegir» existe para que lo que el equipo solo recuerda (el recinto de quien lo usó antes) no pase al perfil de otra persona
+  const opciones = '<option value="">Sin elegir</option>' + Object.values(RECINTOS).map(r =>
+    `<option value="${r.id}">${esc(r.nombre)} · ${esc(r.mascota)}</option>`).join("");
   return `
-  <div class="acceso">
-    <div>
-      <h1>Bitácora de Diagnóstico</h1>
-      <p class="sub">${esc(NOMBRE_TALLER)}. Entra con tu usuario para ver y continuar tus diagnósticos.</p>
-    </div>
-    <div class="conmuta" role="group" aria-label="Entrar o crear cuenta">
-      <button type="button" id="m-entrar" aria-pressed="true">Entrar</button>
-      <button type="button" id="m-crear" aria-pressed="false">Crear cuenta</button>
-    </div>
-    <div id="aviso" hidden></div>
-    <form id="f-acceso" class="campos" autocomplete="on">
-      <label class="f">Usuario
-        <input id="a-usuario" name="username" autocapitalize="none" autocorrect="off"
-               spellcheck="false" required placeholder="lrivera">
-        <span class="pista">Solo minúsculas, números, punto o guion.</span>
-      </label>
-      <label class="f">Contraseña
-        <input id="a-clave" name="password" type="password" required minlength="6"
-               autocomplete="current-password" placeholder="Mínimo 6 caracteres">
-      </label>
-      <div id="extra" hidden class="campos">
-        <label class="f">Código de clase
-          <input id="a-codigo" inputmode="numeric" autocorrect="off" spellcheck="false"
-                 placeholder="Te lo da el instructor">
-          <span class="pista">Lo escribes tú. Solo hace falta al crear la cuenta, no para entrar.</span>
-        </label>
-        <label class="f">Nombre completo
-          <input id="a-nombre" autocomplete="name" placeholder="Luis Rivera"></label>
-        <label class="f">Correo (opcional)
-          <input id="a-email" type="email" autocomplete="email" placeholder="para recibir avisos">
-          <span class="pista">Solo para avisarte cuando entregues o te califiquen. Puedes ponerlo después.</span></label>
-        <label class="f marca"><span><input type="checkbox" id="a-instructor"> Quiero ser instructor</span>
-          <span class="pista">Es una solicitud: sigues como estudiante hasta que el administrador la apruebe.</span></label>
-        <label class="f">Grupo o sección
-          <input id="a-grupo" placeholder="Tec. de Sistemas 4-B"></label>
-        <label class="f">Escuela
-          <input id="a-escuela" placeholder="Nombre del plantel"></label>
+  <div class="entrada-cuerpo${recintoRecordado() ? " recordado" : ""}">
+    <div class="e-izq cap campo-oscuro">
+      <div class="e-tope">
+        <span class="sello"><img src="img/itpr-marca.webp" alt="Instituto Tecnológico de Puerto Rico" width="28" height="33"></span>
+        <b class="e-nombre">Bitácora de diagnóstico</b>
+        <div class="e-acc">
+          ${selector.html}
+          <button class="ic-btn ic-modo" type="button" data-modo-btn aria-label="Modo oscuro" aria-pressed="false">
+            <svg class="luna" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>
+            <svg class="sol" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"/></svg>
+          </button>
+        </div>
       </div>
-      <button type="submit" class="btn" id="a-enviar">Entrar</button>
-    </form>
+      <div class="e-hero">
+        ${ilustracion()}
+        ${titulos}
+        <p class="lead e-lead rev">Registra, revisa y entrega el diagnóstico de cada computadora del taller del Instituto Tecnológico de Puerto Rico. <span class="e-casa">Aquí, <b data-r="largo">${esc(RECINTOS[recintoActual()].largo)}</b> es tu casa.</span><span class="e-elige">Elige tu recinto para empezar.</span></p>
+        ${placaHero()}
+      </div>
+      ${tiles.html}
+    </div>
+
+    <div class="e-der cap">
+      <div class="e-form" data-modo="entrar">
+        <h2 class="h2 rev" id="e-titulo">Entra a tu bitácora</h2>
+        <p class="suave rev" id="e-sub">Lo que empieces aquí se guarda en el teléfono aunque no haya señal.</p>
+        <div class="conmuta rev" role="group" aria-label="Entrar o crear cuenta">
+          <button type="button" id="m-entrar" aria-pressed="true">Entrar</button>
+          <button type="button" id="m-crear" aria-pressed="false">Crear cuenta</button>
+        </div>
+        <div id="aviso" hidden role="status"></div>
+        <form id="f-acceso" class="e-campos" autocomplete="on">
+          <label class="campo-f rev">Usuario
+            <input id="a-usuario" name="username" autocomplete="username" autocapitalize="none" autocorrect="off"
+                   spellcheck="false" required placeholder="lrivera">
+            <span class="pista solo-crear">Solo minúsculas, números, punto o guion.</span>
+          </label>
+          <label class="campo-f rev">Contraseña
+            <input id="a-clave" name="password" type="password" required minlength="6"
+                   autocomplete="current-password" placeholder="Mínimo 6 caracteres">
+          </label>
+          <div id="extra" hidden class="e-campos">
+            <label class="campo-f">Código de clase
+              <input id="a-codigo" inputmode="numeric" autocorrect="off" spellcheck="false"
+                     placeholder="Te lo da el instructor">
+              <span class="pista">Lo escribes tú. Solo hace falta al crear la cuenta, no para entrar.</span>
+            </label>
+            <label class="campo-f">Nombre completo
+              <input id="a-nombre" autocomplete="name" placeholder="Luis Rivera"></label>
+            <label class="campo-f">Grupo o sección
+              <input id="a-grupo" placeholder="Tec. de Sistemas 4-B"></label>
+            <label class="campo-f">Escuela
+              <input id="a-escuela" placeholder="Nombre del plantel"></label>
+            <label class="campo-f">Recinto
+              <select id="a-recinto">${opciones}</select>
+              <span class="pista">Cambia los colores de toda la bitácora. Puedes cambiarlo cuando quieras.</span>
+            </label>
+            <label class="campo-f">Correo (opcional)
+              <input id="a-email" type="email" autocomplete="email" placeholder="para recibir avisos">
+              <span class="pista">Solo para avisarte cuando entregues o te califiquen. Puedes ponerlo después.</span></label>
+            <div class="opcion">
+              <label class="opcion-l"><input type="checkbox" id="a-instructor"><span>Quiero ser instructor</span></label>
+              <span class="pista">Es una solicitud: sigues como estudiante hasta que el administrador la apruebe.</span>
+            </div>
+          </div>
+          <div class="rev"><button type="submit" class="btn ancho" id="a-enviar"><span id="a-enviar-t">Entrar</span>${FLECHA}</button></div>
+        </form>
+      </div>
+      <div class="e-aval rev">
+        <div class="placa-depr"><img src="img/depr.webp" alt="Departamento de Educación, Gobierno de Puerto Rico" width="1000" height="323"></div>
+        <p>División Técnica y Vocacional, con el aval del Departamento de Educación de Puerto Rico.</p>
+      </div>
+    </div>
   </div>`;
 }
 
 export function montarAcceso(){
+  tiles?.montar();
+  selector?.montar();
   // El QR abre directo en "Crear cuenta", pero nunca trae el código: el
   // estudiante lo teclea a mano, dictado o proyectado por el instructor.
   const desdeQR = new URLSearchParams(location.search).has("nuevo");
@@ -63,15 +113,32 @@ export function montarAcceso(){
     $("#m-entrar").setAttribute("aria-pressed", m === "entrar");
     $("#m-crear").setAttribute("aria-pressed", m === "crear");
     $("#extra").hidden = m !== "crear";
+    $(".e-form").dataset.modo = m;
+    $("#e-titulo").textContent = m === "crear" ? "Crea tu cuenta" : "Entra a tu bitácora";
+    $("#e-sub").textContent = m === "crear"
+      ? "Necesitas el código de clase que te da el instructor."
+      : "Lo que empieces aquí se guarda en el teléfono aunque no haya señal.";
     // El navegador no puede enfocar un campo escondido, así que la obligación
     // se pone y se quita con el modo, no en el HTML.
     $("#a-codigo").required = m === "crear";
-    $("#a-enviar").textContent = m === "crear" ? "Crear mi cuenta" : "Entrar";
+    $("#a-enviar-t").textContent = m === "crear" ? "Crear mi cuenta" : "Entrar";
     $("#a-clave").setAttribute("autocomplete", m === "crear" ? "new-password" : "current-password");
     aviso("");
   };
   $("#m-entrar").onclick = () => set("entrar");
   $("#m-crear").onclick  = () => set("crear");
+
+  // El recinto del registro es el mismo que el de las tarjetas: elegir en uno mueve el otro.
+  const selR = $("#a-recinto");
+  const alinear = () => { selR.value = recintoRecordado() ? recintoActual() : ""; };
+  alinear();
+  selR.onchange = () => { if(selR.value) cambiarRecinto(selR.value, selR); };
+  const vigila = new MutationObserver(() => {
+    if(!selR.isConnected){ vigila.disconnect(); return; }
+    alinear();
+  });
+  vigila.observe(document.documentElement, { attributes: true, attributeFilter: ["data-recinto"] });
+
   if(desdeQR){
     set("crear");
     aviso("Llena tus datos y escribe el código de clase para crear tu cuenta.", "exito");
@@ -104,6 +171,7 @@ export function montarAcceso(){
             grupo:   $("#a-grupo").value.trim(),
             escuela: $("#a-escuela").value.trim(),
             email:   $("#a-email").value.trim(),
+            recinto: $("#a-recinto").value,
             solicita_instructor: $("#a-instructor").checked
           }
         }));
@@ -140,6 +208,7 @@ export async function cargarLista(){
     const { data, error } = await conCorte(sb
       .from("diagnosticos")
       .select("id, orden, fecha, creado_en, estado, veredicto, conteo, sistema, hallazgos, nota, comentario, equipos(serial, marca, modelo)")
+      .eq("autor_id", estado.perfil.id)   // un instructor puede leer todo, pero «Mis hojas» son las suyas; las de los estudiantes salen del tablero
       .order("fecha", { ascending:false })
       .order("creado_en", { ascending:false })
       .limit(200));
@@ -151,55 +220,97 @@ export async function cargarLista(){
   estado.enLinea = conectado();
 }
 
-export function vistaPanel(){
-  const p = estado.perfil;
-  const filas = estado.lista.map(d => {
-    const eq = d.equipos;
-    const equipo = eq ? `${val(eq.marca,"")} ${val(eq.modelo,"")}`.trim() || eq.serial : "Equipo sin identificar";
-    const c = d.conteo || {};
-    return `
-    <button class="tarjeta${d.estado === "entregado" && loQueFalta(d).length ? " fila-falta" : ""}" data-abrir="${d.id}" data-v="${esc(d.veredicto)}">
+// Una fila de Mis hojas. El estado se dice con forma + glifo + palabra (campus.js chipEstado) y la barra de la
+// izquierda (.fila-v): una entregada con datos sin llenar es "Incompleto" y no entra al informe final.
+function filaHoja(d){
+  const eq = d.equipos;
+  const equipo = eq ? `${val(eq.marca,"")} ${val(eq.modelo,"")}`.trim() || eq.serial : "Equipo sin identificar";
+  const falta = d.estado === "entregado" ? loQueFalta(d) : [];
+  const grupo = d.estado === "borrador" ? "bor" : falta.length ? "inc" : "ent";
+  const v = grupo === "bor" ? "bor" : grupo === "inc" ? "inc" : (VEREDICTOS[d.veredicto] ? d.veredicto : "sin");
+  const chip = v === "sin" ? '<span class="estado" data-v="sin">Sin evaluar</span>'
+    : chipEstado(v, v === "bor" ? "Borrador" : v === "inc" ? "Incompleto" : VEREDICTOS[v]);
+  const nota = d.nota != null
+    ? `<span class="nota" title="Nota del instructor"><b>${esc(d.nota)}</b><small>/100</small></span>`
+    : grupo === "ent" ? '<span class="nota sin-nota">Sin calificar</span>' : '<span class="nota"></span>';
+  return `
+    <div class="rev" data-g="${grupo}">
+    <button type="button" class="tarjeta fila-v" data-abrir="${esc(d.id)}" data-v="${v}">
       <span class="orden">${esc(val(d.orden,"—"))}</span>
       <span class="tit">${esc(equipo)}
         <small>${esc(fechaLarga(d.fecha))}${eq ? " · " + esc(eq.serial) : ""}</small>
       </span>
-      <span class="pill${d.estado === "borrador" ? " borrador" : ""}" data-v="${esc(d.estado === "borrador" ? "" : d.veredicto)}">
-        ${d.estado === "borrador" ? "Borrador" : esc(VEREDICTOS[d.veredicto] || "—")}
-      </span>
-      ${d.nota != null ? `<span class="pill" data-v="apto" title="Nota del instructor">${esc(d.nota)}</span>` : ""}
-      ${d.estado === "entregado" && loQueFalta(d).length
-        ? `<span class="pill falta-pill" title="${esc("Falta: " + loQueFalta(d).join(", "))}">! Falta</span>` : ""}
-    </button>`;
-  }).join("");
+      <span class="v-celda">${chip}${falta.length ? `<small class="t-falta">Falta: ${esc(falta.join(", "))}</small>` : ""}</span>
+      ${nota}
+    </button></div>`;
+}
+
+export function vistaPanel(){
+  const p = estado.perfil;
+  const n = estado.lista.length;
+  const grupos = { ent: 0, inc: 0, bor: 0 };
+  estado.lista.forEach(d => {
+    grupos[d.estado === "borrador" ? "bor" : d.estado === "entregado" && loQueFalta(d).length ? "inc" : "ent"]++;
+  });
+  const sub = `${n} ${n === 1 ? "hoja" : "hojas"} en la bitácora${grupos.inc ? ` · ${grupos.inc} por completar` : ""}`;
+  const filtros = n >= 3 ? `
+      <div class="pestanas rev" id="filtros-hojas" role="group" aria-label="Filtrar mis hojas">
+        <button type="button" data-f="todas" aria-pressed="true">Todas <small>${n}</small></button>
+        <button type="button" data-f="inc" aria-pressed="false">Incompletas <small>${grupos.inc}</small></button>
+        <button type="button" data-f="bor" aria-pressed="false">Borradores <small>${grupos.bor}</small></button>
+        <button type="button" data-f="ent" aria-pressed="false">Entregadas <small>${grupos.ent}</small></button>
+      </div>` : "";
 
   return `
-  <div class="pila">
-    <div class="enc">
-      <div>
-        <h1>Mis diagnósticos</h1>
-        <p>${estado.lista.length} ${estado.lista.length === 1 ? "hoja" : "hojas"} en la bitácora</p>
-      </div>
-      <div class="fila">
-        ${p.rol === "instructor" ? '<button class="btn ghost" id="b-codigo">Código para entrar</button>' : ""}
-        ${p.rol === "instructor" ? '<button class="btn ghost" id="b-instructor">Ver todo el grupo</button>' : ""}
-        <button class="btn" id="b-nuevo">Nuevo diagnóstico</button>
+  <section class="cap hero campo hero-chico" aria-labelledby="h-hojas">
+    ${ilustracion()}
+    <div class="in hero-in">
+      <div class="hero-txt">
+        ${lemaHero()}
+        <h1 class="h1" id="h-hojas"><span class="linea"><span>Mis</span></span> <span class="linea"><span>hojas</span></span></h1>
+        <p class="hero-sub rev">${esc(sub)}</p>
+        <div class="hero-acc rev">
+          <button class="btn marca-b" type="button" id="b-nuevo">Nuevo diagnóstico<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+          ${p.rol === "instructor" ? '<button class="btn sec" type="button" id="b-codigo">Código para entrar</button>' : ""}
+          ${p.rol === "instructor" ? '<button class="btn sec" type="button" id="b-instructor">Ver todo el grupo</button>' : ""}
+        </div>
       </div>
     </div>
-    <div id="aviso" hidden></div>
-    <form id="f-correo" class="fila no-print correo">
-      <label class="f">Mi correo para avisos
-        <input id="p-email" type="email" value="${esc(p.email || "")}" placeholder="tu@correo.com"></label>
-      <button class="btn ghost chico" type="submit">Guardar correo</button>
-    </form>
-    ${p.solicita_instructor && p.rol !== "instructor"
-      ? '<p class="pista">Tu solicitud para ser instructor espera la aprobación del administrador.</p>' : ""}
-    ${estado.lista.length
-      ? `<div class="tarjetas">${filas}</div>`
-      : `<div class="vacio">
-           <p>Todavía no has registrado ningún diagnóstico.</p>
-           <button class="btn" id="b-nuevo-2">Empezar el primero</button>
-         </div>`}
-  </div>`;
+    ${placaHero()}
+  </section>
+
+  <section class="cap lista-cap" aria-labelledby="h-lista">
+    <div class="in">
+      ${p.solicita_instructor && p.rol !== "instructor"
+        ? `<p class="aviso-info rev">${glifo("info")}<span>Tu solicitud para ser instructor espera la aprobación del administrador.</span></p>` : ""}
+      <h2 class="h2 rev" id="h-lista">${n ? "Tus diagnósticos" : "Tu bitácora está vacía"}</h2>
+      ${filtros}
+      ${n
+        ? `<div class="tarjetas" id="lista-hojas">${estado.lista.map(filaHoja).join("")}</div>
+           <p class="vacio-f pista" id="vacio-f" hidden>No hay hojas de ese tipo.</p>`
+        : `<div class="vacio rev">
+             <p>Todavía no has registrado ningún diagnóstico.</p>
+             <button class="btn" type="button" id="b-nuevo-2">Empezar el primero${FLECHA}</button>
+           </div>`}
+    </div>
+  </section>
+
+  <section class="cap campo-s2 correo-cap no-print" aria-labelledby="h-correo">
+    <div class="in correo-in">
+      <div class="correo-txt rev">
+        <h2 class="h3" id="h-correo">Avisos por correo</h2>
+        <p class="pista">Solo para avisarte cuando entregues o te califiquen. Puedes quitarlo cuando quieras.</p>
+      </div>
+      <div class="correo-forma rev">
+        <div id="aviso" hidden role="status"></div>
+        <form id="f-correo" class="correo">
+          <label class="campo-f">Mi correo para avisos
+            <input id="p-email" type="email" autocomplete="email" value="${esc(p.email || "")}" placeholder="tu@correo.com"></label>
+          <button class="btn" type="submit">Guardar correo</button>
+        </form>
+      </div>
+    </div>
+  </section>`;
 }
 
 // La hoja nace en el equipo del estudiante, con su id ya puesto. Así se
@@ -250,6 +361,18 @@ export function montarPanel(){
   });
   app.querySelectorAll("[data-abrir]").forEach(b =>
     b.addEventListener("click", () => abrir(b.dataset.abrir)));
+  // filtros de la lista: solo esconden filas, no vuelven a pintar
+  app.querySelectorAll("#filtros-hojas [data-f]").forEach(b => b.addEventListener("click", () => {
+    const f = b.dataset.f;
+    app.querySelectorAll("#filtros-hojas [data-f]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+    let visibles = 0;
+    app.querySelectorAll("#lista-hojas [data-g]").forEach(fila => {
+      const ver = f === "todas" || fila.dataset.g === f;
+      fila.hidden = !ver;
+      if(ver) visibles++;
+    });
+    $("#vacio-f").hidden = visibles > 0;
+  }));
 }
 
 /* ================= mirar la hoja de otro (instructor) ================= */

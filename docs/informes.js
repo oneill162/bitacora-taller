@@ -85,8 +85,8 @@ export function porEstudiante(estudiantes, diagnosticos, totalPuntos, equiposPor
       usuario: e.usuario,
       grupo: e.grupo || "",
       ...sumar(suyas, totalPuntos),
-      incompletas: suyas.filter(d =>
-        estaIncompleta(d, equiposPorId[d.equipo_id], totalPuntos)).length
+      // solo las entregadas: un borrador con datos sin llenar todavía se está escribiendo (igual que soloFinales e incompletos)
+      incompletas: suyas.filter(d => d.estado === "entregado" && estaIncompleta(d, equiposPorId[d.equipo_id], totalPuntos)).length
     };
   }).sort((a, b) => b.hojas - a.hojas || b.puntos - a.puntos ||
                     a.nombre.localeCompare(b.nombre, "es"));

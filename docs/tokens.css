@@ -1,0 +1,259 @@
+/* tokens.css — los seis juegos de color verificados (3 recintos x claro/oscuro), WCAG AA.
+   Origen: .diseno/colores/tokens.json (generado; no cambiar valores sin volver a verificar el contraste).
+   Uso: <html data-recinto="itpr|sanjuan|manati" data-modo="claro|oscuro">. Sin data-modo, manda el modo del sistema.
+   Cualquier elemento puede llevar su propio data-recinto (fichas, muestras): trae su paleta completa. */
+
+/* ---- itpr ---- */
+[data-recinto="itpr"]{
+  color-scheme:light;
+  --paper:#F2F2EF;
+  --surface:#FBFBFA;
+  --surface-2:#E9E9E5;
+  --raise:#FFFFFF;
+  --ink:#1D1D1E;
+  --ink-2:#555454;
+  --ink-3:#676666;
+  --rule:#D6D5D0;
+  --accent:#05568D;
+  --accent-hover:#044370;
+  --accent-soft:#DCE9F3;
+  --accent-fg:#FFFFFF;
+  --field:#05568D;
+  --field-ink:#FFFFFF;
+  --marker:#FDD808;
+  --marker-ink:#1D1D1E;
+  --ok:#02705F;
+  --ok-bg:#DFF3EE;
+  --obs:#A94403;
+  --obs-bg:#FBECDF;
+  --bad:#8F1425;
+  --bad-bg:#FAE3E6;
+  --on-bad:var(--raise);
+}
+[data-modo="oscuro"] [data-recinto="itpr"],[data-recinto="itpr"][data-modo="oscuro"]{
+  color-scheme:dark;
+  --paper:#121314;
+  --surface:#1A1B1D;
+  --surface-2:#242628;
+  --raise:#2C2E32;
+  --ink:#ECEBE8;
+  --ink-2:#C4C3C0;
+  --ink-3:#9D9C9A;
+  --rule:#37393D;
+  --accent:#4FA8E0;
+  --accent-hover:#7CC1EC;
+  --accent-soft:#12293A;
+  --accent-fg:#04141F;
+  --field:#0B5E99;
+  --field-ink:#FFFFFF;
+  --marker:#FDD808;
+  --marker-ink:#1D1D1E;
+  --ok:#88DDB5;
+  --ok-bg:#153225;
+  --obs:#E08B3E;
+  --obs-bg:#322415;
+  --bad:#DB707E;
+  --bad-bg:#321519;
+  --on-bad:var(--paper);
+}
+
+/* ---- sanjuan ---- */
+[data-recinto="sanjuan"]{
+  color-scheme:light;
+  --paper:#E9EFF4;
+  --surface:#F6F9FB;
+  --surface-2:#E0E8EF;
+  --raise:#FFFFFF;
+  --ink:#0E2033;
+  --ink-2:#38506A;
+  --ink-3:#4F657E;
+  --rule:#C3D0DC;
+  --accent:#265580;
+  --accent-hover:#1B4166;
+  --accent-soft:#D7E6F2;
+  --accent-fg:#FFFFFF;
+  --field:#102A42;
+  --field-ink:#FFFFFF;
+  --marker:#E31919;
+  --marker-ink:#FFFFFF;
+  --ok:#02705F;
+  --ok-bg:#DFF3EE;
+  --obs:#A94403;
+  --obs-bg:#FBECDF;
+  --bad:#A0123F;
+  --bad-bg:#FADFE7;
+  --on-bad:var(--raise);
+}
+[data-modo="oscuro"] [data-recinto="sanjuan"],[data-recinto="sanjuan"][data-modo="oscuro"]{
+  color-scheme:dark;
+  --paper:#08121C;
+  --surface:#0F1D2C;
+  --surface-2:#162A3F;
+  --raise:#1D3652;
+  --ink:#E9EFF5;
+  --ink-2:#B3C3D3;
+  --ink-3:#8DA2B6;
+  --rule:#25405C;
+  --accent:#62AAEA;
+  --accent-hover:#8AC2F1;
+  --accent-soft:#12304D;
+  --accent-fg:#06121F;
+  --field:#1E4365;
+  --field-ink:#FFFFFF;
+  --marker:#FF6259;
+  --marker-ink:#1A0808;
+  --ok:#88DDB5;
+  --ok-bg:#153225;
+  --obs:#F0B04A;
+  --obs-bg:#322410;
+  --bad:#D788AB;
+  --bad-bg:#321522;
+  --on-bad:var(--paper);
+}
+
+/* ---- manati ---- */
+[data-recinto="manati"]{
+  color-scheme:light;
+  --paper:#F4F6F9;
+  --surface:#FCFDFE;
+  --surface-2:#E5EBF2;
+  --raise:#FFFFFF;
+  --ink:#0C1A2E;
+  --ink-2:#3B4A60;
+  --ink-3:#596A81;
+  --rule:#D0D9E4;
+  --accent:#115099;
+  --accent-hover:#0C3C78;
+  --accent-soft:#DDE8F8;
+  --accent-fg:#FFFFFF;
+  --field:#0C1A2E;
+  --field-ink:#FFFFFF;
+  --marker:#F8C524;
+  --marker-ink:#0C1A2E;
+  --ok:#02705F;
+  --ok-bg:#DFF3EE;
+  --obs:#A94403;
+  --obs-bg:#FBECDF;
+  --bad:#8F1425;
+  --bad-bg:#FAE3E6;
+  --on-bad:var(--raise);
+}
+[data-modo="oscuro"] [data-recinto="manati"],[data-recinto="manati"][data-modo="oscuro"]{
+  color-scheme:dark;
+  --paper:#0A1424;
+  --surface:#101D32;
+  --surface-2:#17273F;
+  --raise:#1E3252;
+  --ink:#EAF0F8;
+  --ink-2:#B9C6D8;
+  --ink-3:#8FA1BA;
+  --rule:#243754;
+  --accent:#6AA8EC;
+  --accent-hover:#8FBFF2;
+  --accent-soft:#15294A;
+  --accent-fg:#06142A;
+  --field:#10294D;
+  --field-ink:#FFFFFF;
+  --marker:#F8C524;
+  --marker-ink:#0A1424;
+  --ok:#88DDB5;
+  --ok-bg:#153225;
+  --obs:#E08B3E;
+  --obs-bg:#322415;
+  --bad:#DB707E;
+  --bad-bg:#321519;
+  --on-bad:var(--paper);
+}
+
+/* Sin data-modo: el modo del sistema decide (los mismos valores oscuros de arriba). */
+@media (prefers-color-scheme:dark){
+  :root:not([data-modo]) [data-recinto="itpr"],:root[data-recinto="itpr"]:not([data-modo]){
+    color-scheme:dark;
+    --paper:#121314;
+    --surface:#1A1B1D;
+    --surface-2:#242628;
+    --raise:#2C2E32;
+    --ink:#ECEBE8;
+    --ink-2:#C4C3C0;
+    --ink-3:#9D9C9A;
+    --rule:#37393D;
+    --accent:#4FA8E0;
+    --accent-hover:#7CC1EC;
+    --accent-soft:#12293A;
+    --accent-fg:#04141F;
+    --field:#0B5E99;
+    --field-ink:#FFFFFF;
+    --marker:#FDD808;
+    --marker-ink:#1D1D1E;
+    --ok:#88DDB5;
+    --ok-bg:#153225;
+    --obs:#E08B3E;
+    --obs-bg:#322415;
+    --bad:#DB707E;
+    --bad-bg:#321519;
+    --on-bad:var(--paper);
+  }
+  :root:not([data-modo]) [data-recinto="sanjuan"],:root[data-recinto="sanjuan"]:not([data-modo]){
+    color-scheme:dark;
+    --paper:#08121C;
+    --surface:#0F1D2C;
+    --surface-2:#162A3F;
+    --raise:#1D3652;
+    --ink:#E9EFF5;
+    --ink-2:#B3C3D3;
+    --ink-3:#8DA2B6;
+    --rule:#25405C;
+    --accent:#62AAEA;
+    --accent-hover:#8AC2F1;
+    --accent-soft:#12304D;
+    --accent-fg:#06121F;
+    --field:#1E4365;
+    --field-ink:#FFFFFF;
+    --marker:#FF6259;
+    --marker-ink:#1A0808;
+    --ok:#88DDB5;
+    --ok-bg:#153225;
+    --obs:#F0B04A;
+    --obs-bg:#322410;
+    --bad:#D788AB;
+    --bad-bg:#321522;
+    --on-bad:var(--paper);
+  }
+  :root:not([data-modo]) [data-recinto="manati"],:root[data-recinto="manati"]:not([data-modo]){
+    color-scheme:dark;
+    --paper:#0A1424;
+    --surface:#101D32;
+    --surface-2:#17273F;
+    --raise:#1E3252;
+    --ink:#EAF0F8;
+    --ink-2:#B9C6D8;
+    --ink-3:#8FA1BA;
+    --rule:#243754;
+    --accent:#6AA8EC;
+    --accent-hover:#8FBFF2;
+    --accent-soft:#15294A;
+    --accent-fg:#06142A;
+    --field:#10294D;
+    --field-ink:#FFFFFF;
+    --marker:#F8C524;
+    --marker-ink:#0A1424;
+    --ok:#88DDB5;
+    --ok-bg:#153225;
+    --obs:#E08B3E;
+    --obs-bg:#322415;
+    --bad:#DB707E;
+    --bad-bg:#321519;
+    --on-bad:var(--paper);
+  }
+}
+
+/* Derivados (iguales para los tres recintos) */
+[data-recinto]{
+  --placa:#FFFFFF;                       /* placa clara para logos: DEPR y las marcas nunca van sobre oscuro */
+  --placa-ink:#1D1D1E;
+  --field-up:color-mix(in srgb,var(--field) 84%,#fff);   /* un escalón más claro que el campo */
+  --field-down:color-mix(in srgb,var(--field) 78%,#000); /* un escalón más oscuro */
+  --field-ink-2:color-mix(in srgb,var(--field-ink) 86%,var(--field));
+  --rule-soft:color-mix(in srgb,var(--rule) 55%,var(--paper));
+  --foco:var(--accent);                  /* dentro de .campo / .campo-oscuro pasa a ser --marker */
+}

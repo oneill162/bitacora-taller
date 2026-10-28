@@ -351,3 +351,83 @@ inventario y de aula: una vista por rol, pocas cifras arriba y todo con salida a
   usuarios con buscador. Necesita conexión.
 - Las cifras salen de `docs/resumen.js` (puro; `node pruebas/resumen.mjs`) y las gráficas son
   HTML/SVG propio (`docs/graficas.js`), sin librerías. Cada una lleva su cifra escrita.
+
+## Identidad por recinto
+
+La app se ve como el Instituto Tecnológico de Puerto Rico (ITPR) y toma el color de cada recinto:
+**ITPR** (todos los recintos), **San Juan** (Tiburones) y **Manatí** (Pumas). El diseño completo,
+con los nombres de clases y las reglas, está en [`DISENO.md`](DISENO.md); la decisión y su
+justificación, en `.diseno/veredicto.md`.
+
+- **Temas.** `<html data-recinto="itpr|sanjuan|manati">` elige la paleta y `<html data-modo="claro|oscuro">`
+  el modo. Sin `data-modo` manda `prefers-color-scheme`. Son seis paletas con el contraste ya
+  verificado (WCAG AA); cambiar de recinto o de modo solo cambia un atributo, nada se vuelve a pintar.
+- **Dónde viven los tokens.** Todo el color sale de `docs/tokens.css`. Las pantallas nunca escriben un hex:
+  usan `var(--paper)`, `var(--accent)`, `var(--marker)`, `var(--placa)`, etc. El rojo y el oro de cada
+  recinto son solo marcadores (`--marker`): nunca aparecen en un chip de estado ni en una gráfica de veredictos.
+- **Cómo se elige el recinto.** (1) En la entrada, con las tres tarjetas «Elige tu recinto» o el chip de la
+  cabecera (en el teléfono abre una hoja desde abajo). (2) Dentro de la app, con el chip de la barra o las
+  tarjetas del pie. (3) Al registrarse, con el campo *Recinto*. (4) El instructor lo puede poner a cada
+  persona en la pestaña *Gente*.
+- **Cómo se recuerda.** En el equipo: `localStorage` con las llaves `bitacora:recinto` y `bitacora:modo`.
+  Un script al inicio de `<head>` (`docs/index.html`) pone los dos atributos y el color de la barra del
+  sistema **antes del primer pintado**, así no se ve un destello del tema ITPR. En la cuenta: la columna
+  `perfiles.recinto` (migración `0008_recinto.sql`). Al entrar manda el recinto del perfil; si el perfil no
+  tiene, se queda el del equipo y se guarda en el perfil. Sin la migración aplicada la app sigue
+  funcionando con el recinto del equipo (no manda la columna hasta que exista).
+- **Código.** `docs/campus.js` es el único dueño del recinto y del modo (`iniciarCampus`, `aplicarRecinto`,
+  `cambiarRecinto`, `alternarModo`, `tilesRecinto`, `selectorRecinto`, `chipEstado`, `glifo`…). El cambio
+  usa una revelación recortada en diagonal (View Transitions) y, con *reducir movimiento*, un fundido.
+- **Estados.** Siempre forma + glifo + palabra, nunca solo color: apto = círculo con palomilla, observación =
+  triángulo lleno, falla = cuadrado redondeado con X, incompleto = círculo discontinuo con «!». Los glifos
+  son solo para veredictos. Una hoja incompleta se marca así y se deja fuera del informe final.
+- **Marcas oficiales** (`docs/img/LEEME.md`, que manda): nunca se giran, recortan, estiran, recolorean ni se
+  les pone sombra o filtro; los escudos van solo sobre placas claras (`--placa`) con un espacio libre de al
+  menos 12 % del alto; el logo del DEPR va siempre sobre una placa rectangular clara; la marca ITPR no va
+  sobre `#05568D` ni sobre oro sin su placa blanca; ningún escudo va sobre el rojo de marca. Tamaños mínimos
+  (ancho CSS): tiburón 72, puma 64, marca ITPR 24, lockup de Manatí 160, DEPR 140. `pruebas/marcas.mjs` lo
+  verifica en todas las pantallas.
+- **Tipografía.** Libre Franklin llega por el enlace de Google Fonts (el service worker la guarda la primera
+  vez que se pide). Mientras no baja se usa la cara local *Franklin Ajustada*, con las métricas ajustadas
+  para que el texto no salte.
+- **Agregar un recinto.** (1) Un bloque `[data-recinto="nuevo"]` con las dos paletas (claro y oscuro) en
+  `docs/tokens.css`, con el contraste verificado. (2) Una entrada en `RECINTOS` y en `TEMA` de `docs/campus.js`
+  y el color de la barra en el script del `<head>` de `docs/index.html`. (3) Su escudo en `docs/img/`
+  (optimizado, con las reglas de uso en `LEEME.md`), en `CASCO` de `docs/sw.js` y en `placaHero`/pie.
+  (4) Los textos de la entrada (`TITULOS` en `docs/acceso.js`). (5) La lista de la restricción `check` de
+  `perfiles.recinto` y de la función `registro`. (6) Súbelo a las listas de las pruebas
+  (`ui.mjs`, `marcas.mjs`). (7) Sube `VERSION` en `docs/sw.js`.
+
+## Pruebas de la interfaz
+
+Todas usan Playwright con Edge o Chrome ya instalados, un servidor de `docs/` y un Supabase de mentira
+(`pruebas/arnes.mjs`); no tocan la base real. Se instala una vez con
+`npm install --no-save --no-package-lock playwright` y se corren desde la raíz:
+
+**Todo de una vez:** `node pruebas/todo.mjs` corre las nueve pruebas una tras otra (cada una en su proceso y con su
+propio servidor en un puerto libre, así no chocan entre sí ni con otra corrida) y da un resumen; sale con código 1 si
+alguna falla. `node pruebas/todo.mjs ui editor` corre solo las que contengan esos nombres, `--rapidas` solo las que no
+abren navegador (`resumen`, `casco`) y `--completo` quita los atajos (por defecto `tablero` salta su matriz larga y
+`marcas` usa 390 y 1280 de ancho; completo tarda unos 30 min). Los scripts de apoyo no son pruebas:
+`arnes.mjs` (servidor, Supabase de mentira, ayudas), `pantallas.mjs` (cómo llegar a cada pantalla),
+`auditoria-marcas.mjs` (las reglas de marcas) y `barrido.mjs` (capturas).
+
+```bash
+node pruebas/ui.mjs            # integración: entrada, dashboards, tablero, teléfono, tacto, movimiento reducido,
+                               #   cambio de recinto (atributo, localStorage, theme-color, aviso aria-live),
+                               #   primer pintado y auditoría de marcas en todas las pantallas
+node pruebas/ui-entrada.mjs    # entrada, registro (recinto) y Mis hojas
+node pruebas/ui-dashboard.mjs  # inicio del estudiante y del instructor, gráficas, Gente
+node pruebas/ui-tablero.mjs    # el día, informes, inventario, revisar, Gente, cartel QR  (SIN_MATRIZ=1 salta la matriz larga)
+node pruebas/ui-editor.mjs     # la hoja, el reporte impreso y calificar
+node pruebas/marcas.mjs        # marcas oficiales: pantallas x 3 recintos x 2 modos x 360/375/390/1280
+node pruebas/ui-arreglos.mjs   # arreglos de la ronda de integración: carreras del tablero, marcas sin desvanecer ni cruzar, registro, avisos, teléfono
+node pruebas/casco.mjs         # el precache de sw.js coincide con docs/ (sin Playwright)
+node pruebas/barrido.mjs       # capturas de todo el flujo en .diseno/integracion/shots/
+node pruebas/resumen.mjs       # la lógica pura de las cifras del dashboard
+```
+
+`pruebas/pantallas.mjs` sabe llegar a cada pantalla y lo comparten `marcas.mjs`, `barrido.mjs` y `ui.mjs`;
+`pruebas/auditoria-marcas.mjs` tiene las reglas de las marcas. Las pruebas viejas de guardado sin señal
+siguen en `pruebas/LÉEME.md`. Al publicar cualquier cambio en `docs/`, sube `VERSION` en `docs/sw.js`
+y corre `node pruebas/casco.mjs`.

@@ -48,14 +48,21 @@ export function fechaLarga(iso){
   return `${Number(d)} de ${MESES[Number(m)-1]} de ${a}`;
 }
 export const val = (v, alt="—") => (v && String(v).trim()) ? String(v).trim() : alt;
-export const ETQ = { ok:"BIEN", obs:"OBS.", falla:"FALLA", na:"N/A", "":"—" };
 
 export function aviso(msg, tipo="error"){
   const zona = $("#aviso");
   if(!zona) return;
+  const nuevo = !!msg && (zona.hidden || zona.textContent !== msg);
   zona.className = tipo;
   zona.textContent = msg;
   zona.hidden = !msg;
+  // en un teléfono el aviso puede quedar cientos de píxeles arriba de donde se tocó el botón: se trae a la vista (solo si es nuevo,
+  // para que el refresco automático del tablero no mueva la pantalla cada 30 s con el mismo error)
+  if(nuevo){
+    const r = zona.getBoundingClientRect();
+    if(r.top < 0 || r.bottom > innerHeight)
+      zona.scrollIntoView({ block: "center", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  }
 }
 
 // Traduce los errores de Supabase a algo que un estudiante entienda.
@@ -139,9 +146,6 @@ export async function empujar(marca){
   if(r.error && !esDeRed(r.error)) aviso(explicar(r.error));
   return r;
 }
-
-// Marca de "falta información": el signo va en el texto para que no dependa solo del rojo.
-export const ICONO_FALTA = '<b class="exclama" aria-label="Incompleto">!</b>';
 
 // Pide el aviso por correo. Nunca estorba: sin señal, sin correo configurado o
 // con un error, se calla; el trabajo ya está guardado.

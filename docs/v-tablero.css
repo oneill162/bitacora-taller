@@ -1,0 +1,225 @@
+/* v-tablero.css — el taller del instructor: el día, informes, inventario, revisar, gente y el cartel del código QR
+   (tablero.js, admin.js, codigo.js). Propietario: el agente de tablero.
+   Reglas: tokens de tokens.css, clases compartidas de estilo.css (.cap .hero .pestanas .estado .fila-v table.datos.apila .btn .campo-f .chip),
+   hover solo con (hover:hover) and (pointer:fine), solo transform / opacity (y clip-path en lo diseñado), sin transiciones genéricas.
+   Los nombres de aquí son propios (t-*, rd, dia-*, gt-*, dup*, cartel*, filtros-t, form-nuevo...) para no pisar a otras pantallas. */
+
+
+/* ========== barra de pestañas (bajo el héroe) ========== */
+.tab-barra{padding-block:1.4rem .25rem}
+.tab-barra .pestanas{margin-bottom:.75rem}
+.tab-barra #aviso{margin-bottom:.75rem}
+.pestanas button .g{width:18px;height:18px}
+
+/* ========== el día: cifras ========== */
+.resumen-dia{display:grid;grid-template-columns:repeat(4,minmax(0,1fr))}
+.rd{display:flex;flex-direction:column;gap:.35rem;padding:1.1rem 1.25rem 1.2rem;background:var(--field-up);color:var(--field-ink)}
+.rd:nth-child(2n){background:var(--field-down)}
+.rd:first-child{padding-left:var(--m)}
+.rd b{font-size:var(--t-fig);font-weight:800;letter-spacing:-.05em;line-height:.9;font-variant-numeric:tabular-nums}
+.rd span{font-size:var(--t-body);font-weight:600;display:flex;align-items:center;gap:.45rem}
+.rd .g{width:18px;height:18px}
+.rd.inc{background:var(--bad-bg);color:var(--bad)}
+@container app (max-width:759px){
+  .resumen-dia{grid-template-columns:1fr 1fr}
+  .rd{padding:1rem var(--m) 1.05rem}
+  .rd b{font-size:2.5rem}
+  .rd:nth-child(3){background:var(--field-down)}
+  .rd:nth-child(4){background:var(--field-up)}
+  .rd.inc{background:var(--bad-bg)}
+}
+
+/* ========== el día: la lista y cómo se lee ========== */
+.dia-sec{padding-block:clamp(2rem,5cqw,4rem)}
+.dia-rej{display:grid;grid-template-columns:minmax(0,1fr) 22rem;gap:clamp(2rem,4cqw,3.5rem);align-items:start}
+@container app (max-width:1099px){.dia-rej{grid-template-columns:minmax(0,1fr)}}
+.dia-izq{min-width:0}
+.dia-izq .h2{margin-bottom:1.25rem}
+.filtros-t{display:flex;gap:.6rem;flex-wrap:wrap;margin-bottom:1.25rem;align-items:flex-end}
+.filtros-t .campo-f{flex:1 1 9rem;min-width:0}
+.filtros-t .btn.chico{min-height:52px}
+.filtros-t p{margin:0;flex:1 1 20rem}
+@container app (max-width:759px){.filtros-t .btn.chico{flex:1 1 7rem}}
+.sub-res:empty,.sub-res:has(#taller-resumen:empty){display:none}
+
+.tablero{display:grid;gap:3px}
+.t-fila{--h:12px;position:relative;display:grid;grid-template-columns:8rem minmax(0,1fr) 4.5rem 14rem;align-items:center;gap:1.25rem;min-height:68px;padding:.6rem 1.25rem .6rem 1.6rem;
+  background:var(--surface);text-align:left;border:0;border-radius:0;width:100%;color:inherit;font:inherit;transition:transform .2s var(--ease),background-color .15s ease}
+.t-fila.sub{margin-left:2.2rem;width:calc(100% - 2.2rem);background:var(--surface-2)}
+.t-fila[data-v="inc"]{background:var(--bad-bg)}
+.t-fila[data-v="sin"]{background:transparent;color:var(--ink-2);outline:2px dashed var(--ink-3);outline-offset:-2px}
+.t-fila.varias{background:var(--surface-2);min-height:56px;grid-template-columns:minmax(0,1fr) auto}
+.t-q{display:flex;align-items:center;gap:.75rem;min-width:0;line-height:1.25}
+.t-n{display:flex;flex-direction:column;min-width:0}
+.t-n b{font-weight:700;font-size:1.0625rem;letter-spacing:-.01em;overflow-wrap:anywhere}   /* el nombre largo baja a otra línea, no se corta */
+.t-n small{font-size:var(--t-small);color:var(--ink-2);overflow-wrap:anywhere}
+.chapa{flex:none;width:36px;height:36px;display:grid;place-items:center;background:color-mix(in srgb,var(--ink) 10%,transparent);color:var(--ink);
+  font-weight:800;font-size:.8125rem;letter-spacing:.02em}
+.t-av{display:block;height:var(--h);background:color-mix(in srgb,var(--ink) 10%,transparent)}
+.t-av i{display:block;height:100%;background:var(--accent);transform-origin:left;
+  clip-path:polygon(0 0,100% 0,max(0px,calc(100% - var(--h)*1.732)) 100%,0 100%)}
+.t-av.nada{background:transparent;outline:2px dashed var(--ink-3);outline-offset:-2px}
+.t-av.nada i{display:none}
+.t-c{font-weight:700;font-variant-numeric:tabular-nums;text-align:right}
+.t-c small{font-weight:500;color:var(--ink-2)}
+.t-m{justify-self:start;display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;font-size:var(--t-small);color:var(--ink-2);font-weight:600}
+.t-fila[data-v="inc"] .t-m{color:var(--bad)}
+button.t-fila{cursor:pointer}
+button.t-fila:active{transform:scale(.995);transition-duration:.08s}
+@media (hover:hover) and (pointer:fine){
+  button.t-fila:hover{transform:translate(var(--hx),0);background:var(--raise)}
+  button.t-fila[data-v="inc"]:hover{background:var(--bad-bg)}
+  button.t-fila.sub:hover{background:var(--raise)}
+}
+/* las filas llegan escalonadas una vez (primera carga y cambio de filtro); el refresco de cada 30 s no mueve nada */
+.tablero.entra .t-fila{animation:fila-in var(--dur) var(--ent) backwards;animation-delay:calc(var(--n,0) * 40ms)}
+.tablero.entra .t-av i{animation:barra-in .8s var(--ease) backwards;animation-delay:calc(var(--n,0) * 40ms + 120ms)}
+@keyframes fila-in{from{opacity:0;transform:translate(var(--ex),var(--ey))}}
+@keyframes barra-in{from{transform:scaleX(0)}}
+@container app (max-width:759px){
+  .t-fila{grid-template-columns:minmax(0,1fr) auto;gap:.35rem .8rem;padding:.8rem 1rem .8rem 1.35rem;min-height:72px}
+  .t-av{grid-column:1 / -1;order:3}
+  .t-m{grid-column:1 / -1;order:4}
+  .t-c{order:2}
+  .t-q{order:1}
+  .t-fila.sub{margin-left:1rem;width:calc(100% - 1rem)}
+  .t-fila[data-v="sin"] .t-av{display:none}
+  .t-fila.varias{grid-template-columns:minmax(0,1fr)}
+}
+.vacio-t{padding:1.25rem 1rem;color:var(--ink-2);outline:2px dashed var(--ink-3);outline-offset:-2px;text-align:center}
+.vacio-celda{text-align:center;color:var(--ink-2);padding:1.5rem 1rem}
+
+.lectura{display:grid;gap:1rem;position:sticky;top:1.5rem}
+.lectura li{display:grid;grid-template-columns:auto 1fr;gap:.2rem .8rem;align-items:start;padding:.8rem .9rem .8rem 1.3rem;background:var(--surface);position:relative}
+.lectura ul{display:grid;gap:3px}
+.lectura li .estado{grid-row:1 / span 2;align-self:center}
+.lectura li::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px}
+.lectura li[data-v="apto"]::before{background:var(--ok)}
+.lectura li[data-v="obs"]::before{width:6px;background:var(--pat-obs)}
+.lectura li[data-v="no"]::before{width:6px;background:var(--bad)}
+.lectura li[data-v="inc"]{background:var(--bad-bg)}
+.lectura li[data-v="inc"]::before{width:6px;background:var(--pat-inc)}
+.lectura li span:not(.estado){font-size:var(--t-small);color:var(--ink)}
+@container app (max-width:1099px){.lectura{position:static}}
+
+/* ========== informes, inventario, revisar, gente ========== */
+.t-sec{padding-block:clamp(2.5rem,6cqw,5rem)}
+.t-cab{display:flex;align-items:flex-end;justify-content:space-between;gap:1.25rem;flex-wrap:wrap;margin-bottom:1.5rem}
+.t-cab:not(:has(.pestanas)) {margin-bottom:1.25rem}
+.t-cab p{color:var(--ink-2)}
+.t-cab .pestanas{margin:0}
+.t-sec .tabla-env+.tabla-env{margin-top:1.5rem}
+table.datos.apila tbody tr[data-ajena]{cursor:pointer}
+table.datos td .falta-t{font-size:var(--t-small);margin-left:.35rem}
+table.datos td.v-celda small{margin-top:.25rem}
+table.datos td.t-correo{overflow-wrap:anywhere}
+@container app (min-width:900px){table.t-gente td.t-correo{min-width:12rem}}
+@container app (min-width:900px){table.datos td.n{white-space:nowrap}}
+table.datos td.t-acc .fila{gap:.4rem}
+table.t-gente td[data-l="Grupo"]{white-space:nowrap}
+table.datos .sel-rec{min-height:44px;min-width:9rem;padding-right:.4rem}
+@container app (max-width:899px){
+  table.datos.apila td.t-acc{grid-column:1 / -1;margin-top:.4rem}
+  table.datos.apila td.t-acc:empty{display:none}
+  table.datos.apila.t-gente td.t-correo,table.datos.apila.t-gente td.t-rol,table.datos.apila.t-gente td.t-recinto{grid-column:1 / -1}
+  table.datos.apila.t-gente td.t-recinto .sel-rec{display:block;width:100%;margin-top:.3rem}
+  table.datos.apila.t-gente td.t-rol .chip{margin-top:.2rem}
+}
+
+.aviso-inc{position:relative;display:flex;gap:.6rem;align-items:flex-start;background:var(--bad-bg);color:var(--bad);padding:.8rem 1rem .8rem 1.5rem;font-weight:600;line-height:1.4;margin:0 0 1rem}
+.aviso-inc::before{content:"";position:absolute;left:0;top:0;bottom:0;width:6px;background:var(--pat-inc)}
+.aviso-inc .g{width:20px;height:20px;margin-top:.1rem}
+.grupo-falta{margin-top:2rem}
+.grupo-falta h3{display:flex;justify-content:space-between;align-items:baseline;gap:1rem;flex-wrap:wrap;margin-bottom:.75rem}
+.grupo-falta h3 small{font-size:var(--t-small);font-weight:600;color:var(--ink-2)}
+
+/* la gráfica del informe por estudiante: dos series con relleno distinto (sólido / rayas) y la cifra al final */
+.gt{background:var(--surface);padding:1.25rem 1.4rem 1.4rem;margin:0 0 1.75rem}
+.gt figcaption{margin-bottom:.9rem}
+.gt .pista b{color:var(--ink)}
+.gt-ley{display:flex;gap:1.25rem;flex-wrap:wrap;margin-bottom:1rem;font-size:var(--t-small);font-weight:600}
+.gt-ley li{display:flex;align-items:center;gap:.5rem}
+.gt-ley i{display:block;width:18px;height:18px}
+.gt .s1{background:var(--accent)}
+.gt .s2{background:repeating-linear-gradient(45deg,var(--ink-2) 0 3px,transparent 3px 6px)} /* taste-skill-ignore: rayas duras de estado, no degradado */
+.gt-ley .s2{outline:1.5px solid var(--ink-2);outline-offset:-1.5px}
+.gt-cuerpo{display:grid;gap:.35rem}
+.gt-f{display:grid;grid-template-columns:minmax(5rem,11rem) minmax(0,1fr) 2.2rem;gap:.75rem;align-items:center}
+.gt-n{font-size:var(--t-small);font-weight:600;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gt-b{--h:16px;display:flex;gap:3px;height:var(--h);background:color-mix(in srgb,var(--ink) 8%,transparent)}
+.gt-b i{display:block;height:100%;transform-origin:left;clip-path:polygon(0 0,100% 0,max(0px,calc(100% - var(--h)*1.732)) 100%,0 100%)}
+.gt-f[data-cero] .gt-b::before{content:"";width:3px;background:var(--ink-3)}   /* un cero también tiene su base */
+.gt-v{text-align:right;font-weight:800;font-variant-numeric:tabular-nums}
+@container app (max-width:759px){.gt{padding:1rem .9rem}.gt-f{grid-template-columns:minmax(4rem,7.5rem) minmax(0,1fr) 1.8rem;gap:.55rem}
+  /* el nombre completo en dos renglones, no cortado con puntos suspensivos (el title no se ve con el dedo) */
+  .gt-n{white-space:normal;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.2}}
+
+.rev-t{margin:2.25rem 0 .75rem}
+.rev-t:first-child{margin-top:0}
+.dup{position:relative;background:var(--surface);padding:1rem 1.1rem 1.1rem 1.6rem;margin-bottom:.75rem}
+.dup::before{content:"";position:absolute;left:0;top:0;bottom:0;width:6px;background:var(--accent)}
+.dup-cab{display:flex;flex-direction:column;gap:.2rem;margin-bottom:.8rem}
+.dup-cab b{font-size:1.0625rem}
+.dup-lista{display:grid;gap:3px;margin-bottom:.9rem}
+.dup-lista li{display:flex;align-items:center;gap:.4rem .8rem;flex-wrap:wrap;padding:.5rem .7rem;background:var(--surface-2);font-size:var(--t-small);color:var(--ink)}
+.dup-lista li.gana{background:var(--accent-soft)}
+.dup-lista code,.btn code{font:inherit;font-weight:700}
+.dup-lista .num{margin-left:auto;color:var(--ink-2)}
+
+.form-nuevo{background:var(--surface);padding:1.25rem 1.4rem 1.4rem;margin:0 0 1.75rem;display:grid;gap:1rem}
+.form-rej{display:grid;grid-template-columns:repeat(auto-fit,minmax(11rem,1fr));gap:.9rem;align-items:end}
+
+/* ========== el cartel del código QR (se imprime en negro sobre blanco) ========== */
+.cartel-sec{padding-block:clamp(2rem,5cqw,4rem)}
+.cartel-rej{display:grid;grid-template-columns:minmax(0,1fr);gap:1.75rem}
+.cartel-rej #aviso{grid-column:1 / -1}
+@container app (min-width:1100px){.cartel-rej{grid-template-columns:minmax(0,34rem) minmax(0,26rem);gap:3rem;align-items:start;justify-content:start}}
+.cartel{--cp:clamp(1.25rem,5cqw,2.5rem);position:relative;display:flex;flex-direction:column;align-items:center;gap:1.1rem;width:100%;max-width:34rem;margin-inline:auto;
+  padding:0 var(--cp) 2rem;background:var(--placa);color:var(--placa-ink);text-align:center}
+.cartel-banda{align-self:stretch;flex:none;height:18px;margin-inline:calc(var(--cp) * -1);background:var(--field);
+  clip-path:polygon(0 0,100% 0,calc(100% - 31.2px) 100%,0 100%)}
+.cartel-cab{display:flex;flex-direction:column;align-items:center;gap:.6rem}
+.cartel-marca{padding:.9rem 1.1rem}                                    /* el aire libre de la marca: más del 12 % de su alto por cada lado */
+.cartel-marca img{display:none;height:auto}
+:root[data-recinto="itpr"] .cartel-marca .c-itpr{display:block;width:5.25rem}
+:root[data-recinto="sanjuan"] .cartel-marca .c-sanjuan{display:block;width:8rem}
+:root[data-recinto="manati"] .cartel-marca .c-manati{display:block;width:9.5rem}
+.cartel h2{font-size:var(--t-head);font-weight:800;letter-spacing:-.03em;line-height:1.05;text-wrap:balance}
+.cartel-sub{font-size:var(--t-small);font-weight:600;color:color-mix(in srgb,var(--placa-ink) 75%,var(--placa))}
+.qr{width:min(100%,19rem)}
+.qr svg{display:block;width:100%;height:auto;background:var(--placa)}
+.cartel-url{font-size:.8125rem;overflow-wrap:anywhere;color:color-mix(in srgb,var(--placa-ink) 75%,var(--placa))}
+.cartel-cod{font-size:1.0625rem;font-weight:600}
+.cartel-cod b{display:block;font-size:clamp(2.25rem,1.5rem + 4cqw,3.5rem);font-weight:800;letter-spacing:.06em;line-height:1.05;font-variant-numeric:tabular-nums}
+.cartel-pie{max-width:34ch;font-size:var(--t-small);color:color-mix(in srgb,var(--placa-ink) 80%,var(--placa));text-wrap:balance}
+.cartel-aval{width:100%;margin-top:.4rem;padding-top:1.1rem;border-top:2px solid color-mix(in srgb,var(--placa-ink) 18%,var(--placa));display:flex;justify-content:center}
+.cartel-aval img{width:11rem;max-width:100%;height:auto}
+.cartel-acc{display:grid;gap:1rem;align-content:start}
+
+/* ========== movimiento reducido: los fundidos se quedan, el recorrido no ========== */
+@media (prefers-reduced-motion:reduce){
+  .tablero.entra .t-fila{animation:aparece-rapido .2s ease-out backwards;animation-delay:0s}
+  .tablero.entra .t-av i{animation:none}
+  button.t-fila:hover,button.t-fila:active{transform:none}
+}
+
+/* ========== impresión: informes limpios y el cartel en negro sobre blanco ========== */
+@media print{
+  .tablero.entra .t-fila,.tablero.entra .t-av i{animation:none}
+  .t-sec{padding-block:1rem;background:#fff!important}
+  .cartel-sec{padding:0;background:#fff!important}
+  .cartel{background:#fff;color:#000;max-width:none;margin:0;padding-top:2rem}
+  .cartel *{color:#000!important}
+  .cartel-marca{padding:1rem}
+  .qr svg{background:#fff}
+  .cartel-aval{border-top-color:#000}
+}
+
+/* sobre el gris (campo-s2) los botones y fichas en tono --surface-2 desaparecen: suben un escalón */
+.campo-s2 .btn.tenue{--c:var(--surface)}
+.campo-s2 .pestanas button[aria-pressed="false"]{background:var(--surface)}
+.campo-s2 .pestanas button[aria-pressed="true"]{background:var(--ink)}
+@media (hover:hover) and (pointer:fine){.campo-s2 .pestanas button[aria-pressed="false"]:hover{background:var(--raise)}}
+/* y dentro de lo que ya es --surface (tarjetas de duplicados, formulario, filas en tarjeta) vuelven a --surface-2 */
+.campo-s2 .dup .btn.tenue,.campo-s2 .form-nuevo .btn.tenue{--c:var(--surface-2)}
+@container app (max-width:899px){.campo-s2 table.datos.apila tr .btn.tenue{--c:var(--surface-2)}}

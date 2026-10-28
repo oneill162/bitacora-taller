@@ -75,7 +75,7 @@ Deno.serve(async (req: Request) => {
       body: JSON.stringify({
         email: `${usuario}@${DOMINIO}`, password, email_confirm: true,
         user_metadata: { usuario, nombre: texto("nombre", 120), grupo: texto("grupo", 60),
-                         escuela: texto("escuela", 120), email },
+                         escuela: texto("escuela", 120), email, recinto: texto("recinto", 16) },
       }),
     });
     if (!r.ok) {

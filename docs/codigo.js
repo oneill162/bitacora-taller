@@ -1,5 +1,6 @@
 import { NOMBRE_TALLER } from "./config.js";
 import { sb, $, app, estado, esc, aviso, explicar, conCorte, conectado } from "./nucleo.js";
+import { RECINTOS, ilustracion, placaHero } from "./campus.js";
 import { pintar } from "./router.js";
 import { descargar } from "./admin.js";
 
@@ -47,32 +48,54 @@ export async function cargarCodigoClase(){
 }
 
 export function vistaCodigo(){
+  // las tres marcas van siempre; el CSS enseña la del recinto activo (así el cartel sigue al cambiar de recinto)
+  const marcas = Object.values(RECINTOS).map(r =>
+    `<img class="c-${r.id}" src="${r.crest}" alt="${esc(r.alt)}" width="${r.w}" height="${r.h}">`).join("");
   return `
-  <div class="pila">
-    <div class="enc no-print">
-      <div><h1>Código para entrar</h1>
-        <p>Pégalo en la plataforma de los estudiantes o proyéctalo en clase.</p></div>
-      <button class="btn ghost" id="b-volver">Volver</button>
+  <section class="cap hero campo hero-chico sin-placa-tel no-print" aria-labelledby="h-cod">
+    ${ilustracion()}
+    <div class="in hero-in">
+      <div class="hero-txt">
+        <h1 class="h1" id="h-cod"><span class="linea"><span>Código para</span></span> <span class="linea"><span>entrar</span></span></h1>
+        <p class="hero-sub rev">Pégalo en la plataforma de los estudiantes o proyéctalo en clase.</p>
+        <div class="hero-acc rev"><button type="button" class="btn sec" id="b-volver">Volver</button></div>
+      </div>
     </div>
-    <div id="aviso" hidden></div>
+    ${placaHero()}
+  </section>
 
-    <div class="cartel">
-      <h2>Bitácora de Diagnóstico</h2>
-      <p class="cartel-sub">${esc(NOMBRE_TALLER)}</p>
-      <div class="qr" id="qr">Generando…</div>
-      <p class="cartel-url" id="qr-url">${esc(enlaceEntrada())}</p>
-      ${estado.codigoClase ? `<p class="cartel-cod">Código de clase: <b>${esc(estado.codigoClase)}</b></p>` : ""}
-      <p class="cartel-pie">Escanea con la cámara del teléfono y escribe el código de arriba.
-        Crea tu cuenta una sola vez; después entras con tu usuario y contraseña.</p>
-    </div>
+  <section class="cap campo-s2 cartel-sec" aria-label="Cartel para imprimir">
+    <div class="in cartel-rej">
+      <div id="aviso" hidden role="status"></div>
+      <article class="cartel" aria-label="Cartel con el código QR">
+        <div class="cartel-banda no-print" aria-hidden="true"></div>
+        <header class="cartel-cab">
+          <div class="cartel-marca">${marcas}</div>
+          <div class="cartel-tit">
+            <h2>Bitácora de Diagnóstico</h2>
+            <p class="cartel-sub">${esc(NOMBRE_TALLER)}</p>
+          </div>
+        </header>
+        <div class="qr" id="qr">Generando…</div>
+        <p class="cartel-url" id="qr-url">${esc(enlaceEntrada())}</p>
+        ${estado.codigoClase ? `<p class="cartel-cod">Código de clase <b>${esc(estado.codigoClase)}</b></p>` : ""}
+        <p class="cartel-pie">Escanea con la cámara del teléfono y escribe el código de arriba.
+          Crea tu cuenta una sola vez; después entras con tu usuario y contraseña.</p>
+        <footer class="cartel-aval">
+          <img src="img/depr.webp" alt="Departamento de Educación, Gobierno de Puerto Rico" width="1000" height="323">
+        </footer>
+      </article>
 
-    <div class="filtros no-print">
-      <button class="btn ghost chico" id="b-png">Descargar imagen</button>
-      <button class="btn ghost chico" id="b-imprimir">Imprimir el cartel</button>
+      <div class="cartel-acc no-print">
+        <div class="fila">
+          <button type="button" class="btn" id="b-imprimir">Imprimir el cartel</button>
+          <button type="button" class="btn tenue" id="b-png">Descargar imagen</button>
+        </div>
+        <p class="pista">El QR abre la app en <i>Crear cuenta</i>, pero el código no
+          viaja en el enlace: el estudiante lo escribe a mano. Proyéctalo o díctalo en clase.</p>
+      </div>
     </div>
-    <p class="pista no-print">El QR abre la app en <i>Crear cuenta</i>, pero el código no
-      viaja en el enlace: el estudiante lo escribe a mano. Proyéctalo o díctalo en clase.</p>
-  </div>`;
+  </section>`;
 }
 
 export async function pintarQR(){

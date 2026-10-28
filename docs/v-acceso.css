@@ -1,0 +1,126 @@
+/* v-acceso.css — entrada, registro y la lista Mis hojas (acceso.js)
+   Propietario: el agente de acceso. Reproduce la entrada de .diseno/institucional/ con el marcado real de acceso.js.
+   Reglas: tokens de tokens.css, clases compartidas de estilo.css, hover solo con (hover:hover) and (pointer:fine),
+   solo transform / opacity (y clip-path en las revelaciones diseñadas), sin propiedad "all" en las transiciones. */
+
+/* ========== entrada: campo partido (7/5) ==========
+   Izquierda: campo plano con el titular del recinto, la placa del escudo y las tres tarjetas "Elige tu recinto".
+   Derecha: el formulario sobre papel y el aval del Departamento de Educación (la placa DEPR es un rectángulo claro).
+   La entrada trae su propia cabecera (sello, chip de recinto, modo) y su propio aval: pintar() en router.js no le pone barra ni pie. */
+.entrada-cuerpo{display:grid;grid-template-columns:minmax(0,7fr) minmax(0,5fr);min-height:100svh}
+
+.e-izq{position:relative;overflow:hidden;display:flex;flex-direction:column;justify-content:space-between;gap:2.5rem;
+  padding:calc(1.5rem + env(safe-area-inset-top,0px)) var(--m,16px) 2.25rem}
+.e-izq>*{position:relative;z-index:2}
+.e-tope{display:flex;align-items:center;gap:.9rem;min-width:0;position:relative;z-index:6}   /* por encima del titular: el menú de recinto cae sobre él */
+.e-tope .rec-n{white-space:nowrap}
+.e-nombre{font-weight:800;font-size:1.0625rem;letter-spacing:-.02em;line-height:1.15;min-width:0}
+.e-acc{display:flex;align-items:center;gap:.5rem;margin-left:auto}
+.e-hero{position:relative;display:flex;flex-direction:column;gap:1.4rem;margin-block:auto;padding-block:1.25rem .5rem}
+.e-hero>*{position:relative;z-index:2}
+/* la ilustración del recinto (losas, aleta, zarpazos) abajo a la derecha del titular, detrás de la placa; su ancho tope la deja fuera del texto */
+.e-hero>.fondo-ilu{position:absolute;inset:auto 0 0 auto;z-index:1;width:min(100%,520px);aspect-ratio:1000 / 440}
+.e-hero .ilu{width:100%;height:100%}
+/* el titular de cada recinto: los tres están en el marcado, se ve el del recinto activo */
+.e-h1{display:none}
+:root[data-recinto="itpr"] .e-h1[data-t="itpr"],:root[data-recinto="sanjuan"] .e-h1[data-t="sanjuan"],
+:root[data-recinto="manati"] .e-h1[data-t="manati"],:root:not([data-recinto]) .e-h1[data-t="itpr"]{display:block}
+/* interlínea de 1: con .9 el acento de «MÉTODO» pisa la línea de arriba */
+.e-hero .h1{font-size:calc(clamp(2.75rem,1rem + 5.4cqw,6rem) * var(--fit,1));line-height:1}
+/* la placa clara del escudo (cortada a 30°, escudo siempre quieto) entra solo donde el texto no la alcanza */
+.e-hero>.placa-wrap{position:absolute;right:calc(var(--m) * -1);bottom:-.5rem;--pw:20rem;z-index:1}
+@container app (max-width:1199px){.e-hero>.placa-wrap{display:none}}
+/* antes de elegir recinto el titular habla de la elección; después, de la casa */
+.e-elige{display:none}
+.entrada-cuerpo:not(.recordado) .e-casa{display:none}
+.entrada-cuerpo:not(.recordado) .e-elige{display:inline}
+
+.e-der{display:flex;flex-direction:column;justify-content:space-between;gap:2.5rem;background:var(--paper);
+  padding:clamp(2rem,5cqw,4rem) var(--m,16px) calc(2rem + env(safe-area-inset-bottom,0px))}
+.e-form{display:flex;flex-direction:column;gap:1.15rem;max-width:30rem;width:100%;margin-inline:auto 0}
+.e-form .h2{margin-bottom:-.2rem}
+.e-campos{display:flex;flex-direction:column;gap:1.15rem}
+.e-form[data-modo="entrar"] .solo-crear{display:none}
+.e-aval{display:flex;align-items:center;gap:1.1rem;flex-wrap:wrap;max-width:30rem}
+.e-aval .placa-depr{padding:1rem 1.3rem}
+.e-aval .placa-depr img{width:11.5rem}
+.e-aval p{font-size:var(--t-small);color:var(--ink-2);flex:1;min-width:11rem}
+
+/* la solicitud de instructor es una casilla grande (≥44px de toque) con su nota */
+.opcion{display:flex;flex-direction:column;gap:.15rem}
+.opcion-l{display:flex;align-items:center;gap:.8rem;min-height:48px;font-weight:600;cursor:pointer}
+.opcion-l input{flex:none;width:24px;height:24px;margin:0}
+
+/* de 900px de app para abajo (tableta y teléfono) las dos mitades se apilan: primero el campo, luego el formulario */
+@container app (max-width:899px){
+  .entrada-cuerpo{grid-template-columns:1fr;min-height:0}
+  .e-izq{padding-top:calc(1rem + env(safe-area-inset-top,0px));gap:1.5rem}
+  .e-hero{padding-block:1.25rem .5rem}
+  .e-der{padding-top:2rem}
+  .e-form{margin-inline:0}
+}
+@container app (max-width:759px){
+  /* en el teléfono la primera pantalla es la cabecera y el formulario, haya recinto elegido o no: la elección va tras el formulario.
+     .e-izq se disuelve para ordenar sus tres piezas (cabecera, titular, tarjetas) alrededor de .e-der; cada una lleva el campo por su cuenta. */
+  .entrada-cuerpo{display:flex;flex-direction:column}
+  .e-izq{display:contents}
+  .e-tope,.e-hero,.entrada-cuerpo .elegir{background:var(--field-down);color:var(--field-ink);--foco:var(--marker);padding-inline:var(--m,16px)}
+  .e-tope{padding-top:calc(1rem + env(safe-area-inset-top,0px))}
+  .e-hero{margin:0;padding-block:.85rem 1.5rem;gap:0;overflow:hidden}
+  .e-hero>.fondo-ilu{width:min(50%,230px)}
+  .e-hero .h1{font-size:calc(clamp(2.25rem,1rem + 7.4cqw,3rem) * var(--fit,1))}
+  .e-lead{display:none}
+  .e-der{order:1;padding-top:1.5rem}
+  .entrada-cuerpo .elegir{order:2;padding-block:2rem}
+}
+@container app (max-width:399px){.e-nombre{display:none}}
+
+/* ========== Mis hojas ========== */
+.lista-cap{padding-block:clamp(2rem,5cqw,3.5rem) clamp(2.5rem,6cqw,4.5rem)}
+.lista-cap .h2{margin-bottom:1.25rem}
+.lista-cap .pestanas{margin-bottom:1.25rem}
+/* un aviso que no es un veredicto: tono de información, nunca los de observación */
+.aviso-info{display:flex;gap:.75rem;align-items:flex-start;margin-bottom:1.5rem;padding:1rem 1.15rem;background:var(--accent-soft);color:var(--ink);font-weight:600;line-height:1.4}
+.aviso-info .g{width:22px;height:22px;margin-top:.1rem;color:var(--accent)}
+
+.tarjetas{display:grid;gap:3px}
+.tarjetas>div{display:flex}
+.tarjeta{position:relative;width:100%;display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"orden orden" "tit nota" "v v";
+  align-items:center;gap:.3rem 1rem;padding:1rem 1.1rem 1rem 1.5rem;border:0;border-radius:0;background:var(--surface);color:var(--ink);text-align:left;font:inherit;
+  transition:transform .2s var(--ease),background-color .15s ease}
+.tarjeta .orden{grid-area:orden;font-size:var(--t-small);font-weight:600;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.tarjeta .tit{grid-area:tit;min-width:0;font-weight:700;font-size:1.0625rem;line-height:1.3;letter-spacing:-.01em;overflow-wrap:anywhere}
+.tarjeta .tit small{display:block;margin-top:.1rem;font-size:var(--t-small);font-weight:400;letter-spacing:0;color:var(--ink-2)}
+.tarjeta .v-celda{grid-area:v;display:flex;flex-wrap:wrap;align-items:center;gap:.4rem .8rem;margin-top:.2rem}
+.tarjeta .t-falta{font-size:var(--t-small);font-weight:600;color:var(--bad);overflow-wrap:anywhere}
+.tarjeta .nota{grid-area:nota;display:flex;align-items:baseline;justify-content:flex-end;gap:.1rem;text-align:right}
+.tarjeta .nota b{font-size:1.75rem;font-weight:800;letter-spacing:-.04em;line-height:1;font-variant-numeric:tabular-nums}
+.tarjeta .nota small{font-size:.8125rem;font-weight:600;color:var(--ink-2)}
+.tarjeta .sin-nota{font-size:var(--t-small);font-weight:600;color:var(--ink-2)}
+@media (hover:hover) and (pointer:fine){
+  .tarjeta:not([data-v="inc"]):hover{background:var(--raise);transform:translate(var(--hx),0)}
+}
+.tarjeta:active{transform:scale(.995);transition-duration:.08s}
+@container app (min-width:760px){
+  .tarjeta{grid-template-columns:10.5rem minmax(0,1fr) 16rem 6.5rem;grid-template-areas:"orden tit v nota";gap:1rem 1.5rem;min-height:76px;padding-block:.9rem}
+  .tarjeta .v-celda{flex-direction:column;align-items:flex-start;gap:.3rem;margin-top:0}
+}
+.lista-cap .vacio{display:flex;flex-direction:column;align-items:flex-start;gap:1.1rem;padding:2.25rem clamp(1.25rem,4cqw,2.5rem);
+  border:0;background:var(--surface);color:var(--ink);text-align:left;font-size:1.125rem;clip-path:none;border-radius:0}
+.vacio-f{padding:1.25rem 0}
+
+/* correo para avisos */
+.correo-cap{padding-block:clamp(2rem,5cqw,3.25rem)}
+.correo-in{display:grid;grid-template-columns:minmax(0,1fr);gap:1.25rem}
+.correo-txt{display:flex;flex-direction:column;gap:.4rem}
+.correo{display:flex;flex-direction:column;align-items:stretch;gap:.75rem;margin:0}
+.correo-forma #aviso{margin-bottom:.75rem}
+@container app (min-width:760px){
+  .correo-in{grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:2rem;align-items:start}
+  .correo{flex-direction:row;align-items:flex-end}
+  .correo .campo-f{flex:1}
+}
+
+@media (prefers-reduced-motion:reduce){
+  .tarjeta:hover,.tarjeta:active{transform:none!important}
+}

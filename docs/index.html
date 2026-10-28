@@ -1,28 +1,70 @@
 <!doctype html>
-<html lang="es-PR">
+<html lang="es-PR" data-recinto="itpr">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 <title>Bitácora de Diagnóstico</title>
 <meta name="description" content="Hoja de cotejo de diagnóstico diario de computadoras para el taller de tecnología.">
-<meta name="theme-color" media="(prefers-color-scheme: light)" content="#DDD6C6">
-<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#1B1D17">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#05568D">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0B5E99">
 <meta name="color-scheme" content="light dark">
+<script>
+// Antes del primer pintado: el recinto y el modo guardados en este equipo. Sin esto se vería un instante el tema
+// ITPR antes de pasar al de San Juan o Manatí. campus.js repite la lógica; si el almacenamiento falla, queda ITPR
+// y el modo del sistema, y la página funciona igual.
+(function(){
+  var d = document.documentElement, T = { itpr: ["#05568D", "#0B5E99"], sanjuan: ["#102A42", "#1E4365"], manati: ["#0C1A2E", "#10294D"] };
+  var r = "itpr", m = "";
+  d.classList.add("js");
+  try {
+    var a = localStorage.getItem("bitacora:recinto"), b = localStorage.getItem("bitacora:modo");
+    if (a === "itpr" || a === "sanjuan" || a === "manati") r = a;
+    if (b === "claro" || b === "oscuro") m = b;
+  } catch (e) {}
+  d.setAttribute("data-recinto", r);
+  if (m) d.setAttribute("data-modo", m);
+  var t = document.querySelectorAll('meta[name="theme-color"]');
+  for (var i = 0; i < t.length; i++) t[i].setAttribute("content", T[r][m ? (m === "oscuro" ? 1 : 0) : i]);
+})();
+</script>
 <link rel="manifest" href="./manifest.json">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%230E5C55'/><text y='.9em' x='50' text-anchor='middle' font-size='62'>🔧</text></svg>">
+<link rel="icon" href="./img/favicon.png" type="image/png">
+<link rel="apple-touch-icon" href="./icono-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="./tokens.css">
 <link rel="stylesheet" href="./estilo.css">
+<link rel="stylesheet" href="./v-acceso.css">
+<link rel="stylesheet" href="./v-dashboard.css">
+<link rel="stylesheet" href="./v-tablero.css">
+<link rel="stylesheet" href="./v-editor.css">
 </head>
 <body>
-<div id="app">
+<!-- Glifos de estado y texturas de gráfica. El color nunca va solo: forma + glifo + palabra + patrón.
+     Los glifos de veredicto (apto, obs, no, inc, bor) son solo para veredictos; info es el aviso que no lo es. -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <symbol id="g-apto" viewBox="0 0 16 16"><circle cx="8" cy="8" r="8" fill="currentColor"/><path d="M4.3 8.3 7 10.9l4.7-5.4" fill="none" stroke="var(--chip-bg,#fff)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="g-obs" viewBox="0 0 16 16"><path d="M8 1.4 15 14.2H1z" fill="currentColor" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></symbol>
+    <symbol id="g-no" viewBox="0 0 16 16"><rect width="16" height="16" rx="3.6" fill="currentColor"/><path d="m5 5 6 6M11 5l-6 6" fill="none" stroke="var(--chip-bg,#fff)" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="g-inc" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.9" fill="none" stroke="currentColor" stroke-width="1.7" stroke-dasharray="3.2 2.2"/><path d="M8 4.2v4.5" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><circle cx="8" cy="11.6" r="1.25" fill="currentColor"/></symbol>
+    <symbol id="g-bor" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.9" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M8 1.1a6.9 6.9 0 0 0 0 13.8z" fill="currentColor"/></symbol>
+    <symbol id="g-info" viewBox="0 0 16 16"><rect x="1.2" y="1.2" width="13.6" height="13.6" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 7v4.4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="8" cy="4.6" r="1.2" fill="currentColor"/></symbol>
+    <pattern id="px-apto" width="4" height="4" patternUnits="userSpaceOnUse"><rect width="4" height="4" style="fill:var(--ok)"/></pattern>
+    <pattern id="px-obs" width="2.4" height="2.4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="2.4" height="2.4" style="fill:var(--obs)"/><rect width="1" height="2.4" style="fill:var(--surface-2)"/></pattern>
+    <pattern id="px-no" width="2.6" height="2.6" patternUnits="userSpaceOnUse"><rect width="2.6" height="2.6" style="fill:var(--bad)"/><circle cx="1.3" cy="1.3" r=".55" style="fill:var(--surface-2)"/></pattern>
+  </defs>
+</svg>
+<div id="app" class="app">
   <main><div class="cargando">Cargando la bitácora…</div></main>
 </div>
+<!-- Fuera de #app a propósito: #app es un contenedor y haría de bloque de contención de todo lo position:fixed. -->
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
 <noscript>
-  <main><div class="acceso">
-    <h1>Falta JavaScript</h1>
-    <p class="sub">Esta bitácora necesita JavaScript activado. Actívalo en el navegador y recarga la página.</p>
+  <main><div class="aviso-pagina">
+    <h1 class="h2">Falta JavaScript</h1>
+    <p class="suave">Esta bitácora necesita JavaScript activado. Actívalo en el navegador y recarga la página.</p>
   </div></main>
 </noscript>
 <!-- supabase-js vive en el repo, no en un CDN: la app tiene que abrir sin señal.

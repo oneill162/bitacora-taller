@@ -1,0 +1,162 @@
+/* v-dashboard.css — inicio del estudiante y del instructor: héroe, cifras, alerta, recientes, gráficas y Gente
+   (dashboard.js, graficas.js, resumen.js). Propietario: el agente de dashboard.
+   Reglas: tokens de tokens.css, clases compartidas de estilo.css (héroe, .kpis, .tabs-m, .estado, table.datos…),
+   hover solo con (hover:hover) and (pointer:fine), solo transform / opacity (y clip-path en las formas diseñadas),
+   nunca "transition" sobre todas las propiedades. El estado nunca va solo en color: forma + glifo + palabra + textura. */
+
+/* ========== héroe de las dos pantallas ========== */
+.inicio #aviso{margin-top:1rem}
+.ins-hero .hero-in{min-height:clamp(24rem,32cqw,28rem)}
+/* los cinco accesos se enrollan antes de llegar a la placa del escudo (que va encima): la columna de texto termina donde empieza ella */
+@container app (min-width:760px){.ins-hero .hero-txt{max-width:min(calc(100% - var(--pw) - 1rem),52rem)}}
+@container app (max-width:759px){
+  .est-hero .hero-acc{width:100%}
+  .est-hero .hero-acc .btn{flex:1 1 100%}
+  /* el instructor lleva sus cinco accesos en el teléfono: la barra de abajo solo trae El taller */
+  .ins-hero .hero-acc{display:grid;grid-template-columns:1fr 1fr;width:100%}
+  .ins-hero .hero-acc .btn-dia{grid-column:1 / -1}
+}
+
+/* ========== cifras del estudiante: cuatro tarjetas, una dominante ========== */
+.kpis-est{grid-template-columns:1fr 1fr;grid-template-rows:none}
+.kpis-est .kpi{min-height:10.5rem}
+.kpis-est .kpi:nth-child(2){background:var(--surface-2)}
+.kpis-est .kpi:nth-child(3){background:var(--surface)}
+.kpis-est .kpi:nth-child(4){background:var(--surface-2)}
+.kpis-est .kpi.alerta{background:var(--bad-bg)}
+.kpis-est .kpi.kpi-prim{background:var(--accent);color:var(--accent-fg)}
+.kpis-est .kpi-prim .kpi-e,.kpis-est .kpi-prim .kpi-s{color:var(--accent-fg)}
+.kpis-est .kpi-prim .kpi-v{font-size:clamp(4.5rem,2.5rem + 8cqw,8rem);letter-spacing:-.06em}
+@container app (min-width:760px){
+  .kpis-est{grid-template-columns:1.5fr 1fr 1fr 1fr}
+  .kpis-est .kpi{min-height:15rem}
+  .kpis-est .kpi:nth-child(2),.kpis-est .kpi:nth-child(4){background:var(--surface)}
+  .kpis-est .kpi:nth-child(3){background:var(--surface-2)}
+  .kpis-est .kpi.alerta{background:var(--bad-bg)}
+}
+/* la tarjeta que no cabe en la rejilla (sin "Piden ser instructor") ocupa el hueco y no deja una celda vacía */
+.kpis.sin-piden .kpi-leyenda{grid-column:span 2}
+
+/* el roce y el toque de las tarjetas: la entrada (.rev) fija transform:none con más fuerza; cuando termina (.hecho) vuelven */
+@media (hover:hover) and (pointer:fine){
+  html.js .kpi.rev.visto.hecho:is(a,button):hover{transform:translate(var(--hx),var(--hy))}
+  html.js .rec.rev.visto.hecho:hover{transform:translate(var(--hx),0)}
+}
+html.js .kpi.rev.visto.hecho:is(a,button):active,html.js .rec.rev.visto.hecho:active{transform:scale(.985);transition-duration:.08s}
+
+/* ========== "Completa estas hojas": el capítulo de lo incompleto ========== */
+.alerta-cap{background:var(--bad-bg);color:var(--ink);padding-block:2rem 2.25rem}
+.alerta-cap::before{content:"";position:absolute;left:0;top:0;bottom:0;width:6px;background:var(--pat-inc)}
+.alerta-cab{display:flex;gap:.9rem;align-items:flex-start}
+.alerta-cab .g{flex:none;width:34px;height:34px;color:var(--bad);margin-top:.15rem}
+.alerta-cab h2{color:var(--bad)}
+.alerta-cab p{color:var(--ink);margin-top:.5rem;max-width:42ch}
+.lista-acc{display:grid;gap:.5rem;margin-top:1.4rem}
+.acc{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"info btn" "chip chip";gap:.6rem 1rem;align-items:center;
+  padding:.9rem 1rem;background:var(--raise)}
+.acc>div{grid-area:info;min-width:0}
+.acc>.btn{grid-area:btn}
+.acc>.estado{grid-area:chip;justify-self:start}
+.acc b{display:block;font-size:1.0625rem;letter-spacing:-.01em;overflow-wrap:anywhere}
+.acc small{display:block;font-size:var(--t-small);color:var(--ink);margin-top:.15rem}
+@container app (min-width:760px){
+  .acc{grid-template-columns:minmax(0,1fr) auto auto;grid-template-areas:"info chip btn"}
+}
+
+/* ========== lo más reciente ========== */
+.recientes{padding-block:2.25rem 2.5rem}
+.rec-lista{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,26rem),1fr));gap:3px;margin-top:1.25rem}
+.rec{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:.5rem .8rem;padding:.95rem 1rem .95rem 1.4rem;background:var(--surface);
+  text-align:left;border:0;border-radius:0;width:100%;color:inherit;font:inherit;transition:transform .2s var(--ease),background-color .15s ease}
+.rec b{display:block;font-size:1.0625rem;letter-spacing:-.01em;overflow-wrap:anywhere}
+.rec small{font-size:var(--t-small);color:var(--ink-2);display:block}
+.rec .estado{grid-column:1 / -1;justify-self:start}
+.rec .nota{font-size:1.75rem;font-weight:800;letter-spacing:-.04em;font-variant-numeric:tabular-nums;text-align:right;line-height:1}
+.rec .nota small{display:inline;font-size:.8125rem;font-weight:600;letter-spacing:0}
+.rec[data-v="inc"]{background:var(--bad-bg)}
+@media (hover:hover) and (pointer:fine){.rec:hover{background:var(--raise)}}
+.rec:active{transform:scale(.995)}
+
+/* ========== gráficas ========== */
+.graf-sec{padding-block:clamp(2.5rem,6cqw,5rem)}
+.graf-rejilla{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:clamp(2rem,4cqw,3.5rem) 2rem;margin-top:2rem}
+.graf-a{grid-column:span 5}.graf-b{grid-column:span 7}.graf-c{grid-column:span 4}
+.graf h3{font-size:1.375rem;font-weight:700;letter-spacing:-.02em;line-height:1.15}
+.graf .nota{font-size:var(--t-small);color:var(--ink-2);margin-top:.25rem}
+.graf .nota.nota-2{margin-top:1.75rem}
+.graf>*:not(h3):not(.nota){margin-top:1.25rem}
+.graf .vacio-chico{margin-top:1.25rem}
+@container app (max-width:1099px){.graf-a,.graf-b,.graf-c{grid-column:1 / -1}}
+@container app (min-width:760px) and (max-width:1099px){.graf-c{grid-column:span 6}}
+.inicio .vacio-chico{color:var(--ink-2);text-align:left;padding:.5rem 0}
+.inicio .vacio-carga{padding:3rem var(--m,16px)}
+
+/* dona: la textura está en el sprite (#px-apto, #px-obs, #px-no); el centro lleva la cifra total */
+.dona{display:flex;align-items:center;gap:1.75rem;flex-wrap:wrap}
+.dona-aro{position:relative;width:clamp(11rem,18cqw,14.5rem);flex:none;container-type:inline-size}
+.dona-aro svg{width:100%;overflow:visible}
+.dona-aro .anillo{transform-origin:21px 21px}
+.dona-c{position:absolute;inset:0;display:grid;place-content:center;text-align:center}
+.dona-c b{font-size:24cqw;font-weight:800;letter-spacing:-.05em;line-height:.9;font-variant-numeric:tabular-nums}
+.dona-c span{font-size:var(--t-small);color:var(--ink-2);font-weight:600}
+.dona-ley{display:grid;gap:.9rem;min-width:11rem;flex:1}
+.dona-ley li{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:.6rem}
+.dona-ley .sw{width:22px;height:22px}
+.dona-ley b{font-size:1.625rem;font-weight:800;letter-spacing:-.03em;line-height:1;font-variant-numeric:tabular-nums}
+.dona-ley small{grid-column:2 / -1;font-size:var(--t-small);color:var(--ink-2);margin-top:-.55rem}
+.dona-ley span{font-weight:600}
+
+/* columnas: el remate de cada una sube a 30° (la pendiente de la losa); la de hoy lleva el color de marca.
+   Cada .col es su propio contenedor, así 100cqw es el ancho real de la columna y el corte sale a 30° en cualquier pantalla. */
+.cols{display:flex;align-items:flex-end;gap:.4rem;height:15rem}
+.col{flex:1;min-width:0;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:.35rem;container-type:inline-size}
+.col b{font-size:var(--t-small);font-weight:700;font-variant-numeric:tabular-nums;height:1.1rem}
+.col .cuerpo{--w:min(100cqw,2.6rem);--c:calc(var(--w) * var(--tan30));position:relative;width:var(--w);background:var(--accent);
+  clip-path:polygon(0 min(var(--c),100%),100% 0,100% 100%,0 100%);transform-origin:bottom}
+.col.cero .cuerpo{height:4px!important;background:var(--ink-3);clip-path:none}      /* un día sin entregas deja su base visible */
+.col.hoy .cuerpo{background:var(--marker)}
+.col small{font-size:.8125rem;color:var(--ink-2);height:1rem;white-space:nowrap}
+.col.hoy small{color:var(--ink);font-weight:800}
+
+/* barras: el extremo va cortado a 30°; la textura del veredicto viaja con el color */
+.hb{display:grid;gap:.85rem}
+.hb-f{display:grid;grid-template-columns:minmax(0,9.5rem) minmax(0,1fr) 2rem;align-items:center;gap:.8rem}
+.hb-n{font-size:var(--t-body);font-weight:500;line-height:1.2;overflow-wrap:anywhere}   /* un nombre largo se parte, no se corta */
+.hb-b{display:block;height:1rem;background:color-mix(in srgb,var(--ink) 9%,transparent);--h:1rem}
+.hb-b i{display:block;height:100%;background:var(--accent);transform-origin:left;
+  clip-path:polygon(0 0,100% 0,max(0px,calc(100% - var(--h) * 1.732)) 100%,0 100%)}
+.hb-b i{min-width:1.25rem}                                        /* un valor chico (la falla) sigue viéndose */
+.hb-b i[style*="width:0.0%"]{min-width:0}
+.hb-b i.mal,.hb-b i[data-v="no"]{background:var(--bad)}
+.hb-b i[data-v="apto"]{background:var(--ok)}
+.hb-b i[data-v="obs"]{background:var(--pat-obs)}
+.hb-b i[data-v="na"]{background:var(--ink-3)}
+.hb-v{font-weight:800;text-align:right;font-variant-numeric:tabular-nums;font-size:1.125rem}
+@container app (max-width:759px){
+  .hb-f{grid-template-columns:minmax(0,8.6rem) minmax(0,1fr) 1.9rem;gap:.55rem}
+  .cols{height:12rem;gap:.2rem}
+}
+
+/* ========== Gente: usuarios registrados ========== */
+.tabla-sec{padding-block:clamp(2.5rem,6cqw,5rem)}
+.tabla-cab{display:flex;align-items:flex-end;justify-content:space-between;gap:1.25rem;flex-wrap:wrap;margin-bottom:1.5rem}
+.tabla-cab p{color:var(--ink-2)}
+.buscar{display:flex;gap:.6rem;align-items:flex-end;flex-wrap:wrap}
+.buscar .campo-f{flex:1 1 15rem;min-width:0}
+@container app (min-width:1100px){.buscar{flex-wrap:nowrap}.buscar .campo-f{flex:0 0 17rem}}
+@container app (max-width:759px){.buscar,.tabla-cab>div{width:100%}.buscar .btn{flex:1 1 100%}}
+table.usuarios td.rol-celda{white-space:normal}
+table.usuarios .chip{margin:.1rem .25rem .1rem 0}
+@container app (max-width:899px){
+  table.datos.apila.usuarios tr{grid-template-columns:1fr 1fr}
+  table.datos.apila.usuarios td.primera{order:0}
+  table.datos.apila.usuarios td[data-l="Grupo"]{order:1}
+  table.datos.apila.usuarios td.n{order:2}
+  table.datos.apila.usuarios td.rol-celda{order:3;grid-column:1 / -1;margin-top:.35rem}
+  table.datos.apila.usuarios td.primera b{overflow-wrap:anywhere}
+}
+
+/* ========== bienvenida (aún sin hojas) ========== */
+.bienvenida{padding-block:clamp(2.5rem,6cqw,4.5rem)}
+.bienvenida .in{display:grid;gap:1.1rem;justify-items:start}
+.bienvenida p{max-width:44ch;color:var(--ink-2)}

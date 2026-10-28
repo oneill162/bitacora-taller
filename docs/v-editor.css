@@ -1,0 +1,241 @@
+/* v-editor.css — la hoja de diagnóstico, el reporte impreso y la calificación (editor.js)
+   Propietario: el agente de editor.
+   El editor se abre decenas de veces al día: nada de entradas escalonadas ni de movimiento ambiental. Lo único que
+   se mueve es la respuesta al toque (presionar = scale .97 en 80 ms) y los fundidos de color de 150 ms.
+   Reglas: tokens de tokens.css, clases compartidas de estilo.css, hover solo con (hover:hover) and (pointer:fine),
+   solo transform / opacity, ninguna transición sobre todas las propiedades. */
+
+
+/* ============ la hoja (editor): una pila de capítulos ============ */
+.ed-cab{padding-block:clamp(1.25rem,3.5cqw,2.25rem)}
+.ed-cab-in{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:1rem 1.5rem}
+.ed-cab-t{min-width:0}
+.ed-titulo{font-size:var(--t-head);font-weight:800;line-height:1;letter-spacing:-.03em}
+/* el único adorno: el marcador del recinto con su extremo cortado a 30° */
+.ed-titulo::after{content:"";display:block;width:3.5rem;height:8px;margin-top:.7rem;background:var(--marker);
+  clip-path:polygon(0 0,100% 0,calc(100% - 13.9px) 100%,0 100%)}
+.ed-sub{margin-top:.55rem;font-size:1.125rem;line-height:1.4;color:var(--field-ink-2);overflow-wrap:anywhere}
+@container app (max-width:759px){
+  .ed-cab-acc{width:100%}
+  .ed-cab-acc .btn{flex:1 1 0}
+}
+
+.ed-ficha{padding-block:clamp(1.75rem,4cqw,3rem)}
+.ed-ficha .in{display:grid;gap:clamp(1.5rem,3cqw,2.25rem)}
+.ed-bloque{display:grid;gap:1rem}
+.ed-campos{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,14.5rem),1fr));gap:1rem 1.25rem}
+.ed-campos .campo-f{align-self:start}
+
+.ed-grupo{padding-block:clamp(1.5rem,3.5cqw,2.5rem)}
+.ed-gh{display:flex;align-items:baseline;gap:.9rem;margin-bottom:.5rem;font-size:var(--t-head);font-weight:700;line-height:1.04;letter-spacing:-.028em}
+.ed-gn{font-style:normal;font-weight:800;font-variant-numeric:tabular-nums;color:var(--accent)}
+.ed-puntos{display:grid;max-width:82rem}
+
+/* un punto: título + ayuda, los cuatro estados y la nota. La barra de la izquierda repite el estado (forma, no solo color) */
+.punto{position:relative;display:grid;gap:.65rem;padding:.9rem 0 .9rem 1.1rem;margin-bottom:.6rem}   /* los puntos se separan con espacio y con su barra de estado, no con líneas */
+.punto::before{content:"";position:absolute;left:0;top:0;bottom:0;width:0}
+.punto[data-e="ok"]::before{width:3px;background:var(--ok)}
+.punto[data-e="obs"]::before{width:6px;background:var(--pat-obs)}
+.punto[data-e="falla"]::before{width:6px;background:var(--bad)}
+.punto[data-e="na"]::before{width:3px;background:repeating-linear-gradient(to bottom,var(--ink-3) 0 3px,transparent 3px 6px)} /* taste-skill-ignore: textura de estado, no degradado */
+.punto-t{font-size:var(--t-body);font-weight:600;line-height:1.35}
+.punto-h{margin-top:.15rem;font-size:var(--t-small);line-height:1.45;color:var(--ink-2);overflow-wrap:anywhere}
+.punto .nota{min-height:44px;font-size:var(--t-body)}
+
+/* los cuatro botones: glifo + palabra; el elegido se rellena con el tono del estado y lleva una barra arriba */
+.seg{position:relative;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:2px;padding:2px;background:var(--ink-3)}
+.seg input{position:absolute;opacity:0;width:1px;height:1px;margin:0;pointer-events:none}
+.seg label{--chip-bg:var(--raise);position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.25rem;
+  min-height:58px;padding:.5rem .15rem;background:var(--raise);color:var(--ink);font-size:var(--t-small);font-weight:600;line-height:1.1;text-align:center;
+  cursor:pointer;touch-action:manipulation;-webkit-user-select:none;user-select:none;
+  transition:background-color .15s ease,transform .12s var(--ease)}
+.seg label .g{width:20px;height:20px;color:var(--ink-3)}
+.seg label::before{content:"";position:absolute;left:0;right:0;top:0;height:0;
+  clip-path:polygon(0 0,100% 0,calc(100% - 10.4px) 100%,0 100%)}
+.seg label:active{transform:scale(.97);transition-duration:.08s}
+.seg input:focus-visible + label{outline:3px solid var(--foco);outline-offset:2px;z-index:2}
+.seg input:checked + label{font-weight:800}
+.seg input:checked + label .g{color:currentColor}
+.seg input[value="ok"]:checked + label{--chip-bg:var(--ok-bg);background:var(--ok-bg);color:var(--ok)}
+.seg input[value="ok"]:checked + label::before{height:4px;background:var(--ok)}
+.seg input[value="obs"]:checked + label{--chip-bg:var(--obs-bg);background:var(--obs-bg);color:var(--obs)}
+.seg input[value="obs"]:checked + label::before{height:6px;background:var(--pat-obs)}
+.seg input[value="falla"]:checked + label{--chip-bg:var(--bad-bg);background:var(--bad-bg);color:var(--bad)}
+.seg input[value="falla"]:checked + label::before{height:6px;background:var(--bad)}
+.seg input[value="na"]:checked + label{--chip-bg:var(--surface-2);background:var(--surface-2);color:var(--ink)}
+.seg input[value="na"]:checked + label::before{height:4px;background:var(--ink-3)}
+@media (hover:hover) and (pointer:fine){
+  .seg input:not(:checked) + label:hover{--chip-bg:var(--surface-2);background:var(--surface-2)}
+}
+@container app (min-width:760px){
+  .punto{grid-template-columns:minmax(0,1fr) 22rem;column-gap:1.5rem;align-items:start}
+  .punto .nota{grid-column:1 / -1}
+  .seg label{flex-direction:row;gap:.45rem;min-height:48px}
+}
+@container app (min-width:1100px){
+  .punto{grid-template-columns:minmax(0,1.15fr) 22rem minmax(0,1fr);align-items:center}
+  .punto .nota{grid-column:auto}
+}
+
+.ed-campos-cierre{display:grid;gap:1.25rem 1.5rem;max-width:82rem}
+.ed-campos-cierre textarea{min-height:8.5rem}
+@container app (min-width:760px){
+  .ed-campos-cierre{grid-template-columns:1fr 1fr}
+  .ed-campos-cierre .campo-f:last-child{grid-column:1 / -1;max-width:28rem}
+}
+
+/* la barra de abajo: veredicto, avance, qué falta, guardado y Entregar. Pegajosa, nunca fixed (#app es un contenedor) */
+.resumen{position:sticky;bottom:0;z-index:25;padding-bottom:env(safe-area-inset-bottom,0px)}
+/* teléfono con el teclado abierto (interactive-widget=resizes-content): la barra de dos filas se comería un tercio de lo que queda a la vista
+   y taparía el campo que se escribe. Mientras un campo tiene el foco, la barra vuelve a su sitio al final de la hoja. */
+@container app (max-width:759px){
+  body:has(:is(input:not([type="radio"],[type="checkbox"]),textarea,select):focus) .resumen{position:static}
+}
+.resumen-in{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"est prog" "pie btn";gap:.45rem 1rem;align-items:center;padding-block:.6rem}
+.ed-estados{grid-area:est;display:flex;flex-wrap:wrap;gap:.35rem;min-width:0}
+.ed-estados .estado{white-space:normal}
+.resumen .estado-lg{min-height:30px;padding:.2rem .7rem .2rem .5rem;font-size:var(--t-small)}
+.resumen .estado-lg .g{width:18px;height:18px}
+.ed-prog{grid-area:prog;display:flex;align-items:center;gap:.7rem;font-weight:700}
+.progreso{font-variant-numeric:tabular-nums;min-width:3.2rem;text-align:right}
+.ed-barra{--h:10px;--p:0;position:relative;display:none;width:6.5rem;height:var(--h);background:color-mix(in srgb,var(--field-ink) 24%,transparent)}
+.ed-barra::before{content:"";position:absolute;inset:0 auto 0 0;width:calc(var(--p) * 100%);background:var(--field-ink);
+  clip-path:polygon(0 0,100% 0,calc(100% - var(--h) * 1.732) 100%,0 100%)}
+.ed-pie{grid-area:pie;min-width:0;display:flex;align-items:center;flex-wrap:wrap;gap:0 1rem}
+.guardado{font-size:var(--t-small);color:var(--field-ink-2)}
+.resumen #b-entregar{grid-area:btn}
+.ed-falta summary{display:inline-flex;align-items:center;gap:.45rem;min-height:44px;font-size:var(--t-small);font-weight:700;color:var(--field-ink);
+  text-decoration:underline;text-underline-offset:4px;text-decoration-thickness:2px;cursor:pointer;list-style:none}
+.ed-falta summary::-webkit-details-marker{display:none}
+.ed-falta summary .g{width:18px;height:18px}
+.ed-falta[open] > ul{position:absolute;left:0;right:0;bottom:100%;display:grid;gap:.35rem;padding:1rem var(--m,16px) 1rem calc(var(--m,16px) + 6px);
+  background:var(--bad-bg);color:var(--bad);font-weight:600}
+.ed-falta[open] > ul::before{content:"";position:absolute;left:0;top:0;bottom:0;width:6px;background:var(--pat-inc)}
+@container app (max-width:759px){
+  .resumen #b-entregar{min-height:48px;padding-inline:1rem}
+  .ed-prog{gap:0}
+}
+@container app (min-width:760px){
+  .resumen-in{grid-template-columns:auto minmax(0,1fr) auto auto;grid-template-areas:"est pie prog btn";gap:1rem 1.5rem}
+  .resumen .estado-lg{min-height:40px;padding:.3rem .9rem .3rem .65rem;font-size:var(--t-body)}
+  .resumen .estado-lg .g{width:22px;height:22px}
+  .ed-barra{display:block}
+}
+
+/* ============ el reporte ============ */
+.ed-tool{padding-block:.9rem}
+.ed-estado:has(.in > :not([hidden])){padding-block:clamp(1.25rem,3cqw,2rem)}
+.ed-estado .in{display:grid;gap:1rem}
+
+/* leyendo la hoja de otro: aviso de información (no es un veredicto), con el glifo de aviso */
+.ajena{position:relative;display:flex;align-items:flex-start;gap:.75rem;padding:1rem 1.1rem 1rem 1.6rem;background:var(--accent-soft);color:var(--ink);font-weight:600;line-height:1.4}
+.ajena::before{content:"";position:absolute;left:0;top:0;bottom:0;width:6px;background:var(--accent)}
+.ajena .g{flex:none;width:20px;height:20px;margin-top:.12rem;color:var(--accent)}
+
+/* "Falta culminar": la hoja entregada con datos sin llenar. Barra segmentada + fondo rosado + "!" + palabra */
+.falta{display:flex;align-items:flex-start;gap:1rem;padding:1rem 1.1rem 1rem 1.6rem;line-height:1.4}
+.falta b{display:block;color:var(--bad)}
+.falta div span{color:var(--ink)}
+.falta .estado{flex:none}
+@container app (max-width:559px){.falta{flex-direction:column;gap:.6rem}}
+
+/* la nota del instructor, vista por el estudiante */
+.nota-final{display:grid;grid-template-columns:auto minmax(0,1fr);gap:.75rem 2rem;align-items:center;padding:1.25rem 1.5rem;background:var(--accent);color:var(--accent-fg)}
+.nota-n{display:flex;flex-direction:column;gap:.3rem}
+.nota-e{font-weight:700}
+.nota-v{font-size:var(--t-fig);font-weight:800;letter-spacing:-.045em;line-height:.9;font-variant-numeric:tabular-nums}
+.nota-v small{margin-left:.3rem;font-size:1rem;font-weight:700;letter-spacing:0}
+.nota-c{font-size:1.125rem;line-height:1.5;overflow-wrap:anywhere;white-space:pre-wrap}
+@container app (max-width:559px){.nota-final{grid-template-columns:1fr}}
+
+/* calificar */
+.calificar{padding-block:clamp(1.5rem,3.5cqw,2.5rem)}
+.ed-cal{display:grid;gap:1.1rem 1.5rem}
+.ed-cal-h p{margin-top:.25rem}
+.ed-cal textarea{min-height:6.5rem}
+#n-nota{min-height:64px;font-size:2rem;font-weight:800;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+@container app (min-width:760px){
+  .ed-cal{grid-template-columns:12rem minmax(0,1fr);align-items:start}
+  .ed-cal-h,.ed-cal-acc,.ed-cal #aviso{grid-column:1 / -1}
+}
+
+/* el documento */
+.ed-papel{padding-block:clamp(1.25rem,4cqw,3rem)}
+.hoja{display:grid;grid-template-columns:minmax(0,1fr);gap:1.75rem;max-width:62rem;margin-inline:auto;padding:clamp(1.25rem,4cqw,2.75rem);background:var(--raise);color:var(--ink)}
+.hoja-ident{display:flex;flex-wrap:wrap;align-items:center;gap:.6rem 1rem}
+.hoja-ident .placa-campus,.hoja-ident .placa-depr{padding:.75rem 1rem}
+/* las marcas siguen sus reglas: proporción libre (height:auto), sobre placa clara, tamaños por encima del mínimo (tiburón 72, lockup 160, DEPR 140) */
+:root[data-recinto="itpr"] .hoja-ident .pc-itpr{height:3.5rem;width:auto}
+:root[data-recinto="sanjuan"] .hoja-ident .pc-sanjuan{height:4.75rem;width:auto}
+:root[data-recinto="manati"] .hoja-ident .pc-manati{width:11rem;height:auto}
+.hoja-ident .placa-depr img{width:10rem}
+.hoja-aval{flex:1 1 12rem;font-weight:700;line-height:1.3;color:var(--ink-2)}
+.hoja-h{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:.75rem 2rem;padding-bottom:1rem;border-bottom:3px solid var(--ink)}
+.hoja-h h1{font-size:var(--t-head);font-weight:800;line-height:1;letter-spacing:-.03em}
+.hoja-h p{margin-top:.4rem;color:var(--ink-2)}
+.hoja-h > *{min-width:0}
+.hoja-h .orden{overflow-wrap:anywhere;font-weight:700;line-height:1.5;text-align:right;font-variant-numeric:tabular-nums}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,11rem),1fr));gap:.9rem 1.5rem}
+.meta div{display:flex;flex-direction:column;gap:.1rem;padding-bottom:.45rem;border-bottom:1px solid var(--rule)} /* taste-skill-ignore: ficha impresa, las líneas son del documento */
+.meta dt{font-size:var(--t-small);color:var(--ink-2)}
+.meta dd{margin:0;font-weight:700;overflow-wrap:anywhere}
+.rveredicto{display:grid;gap:.9rem;padding:1.1rem 1.25rem 1.1rem 1.6rem;background:var(--surface-2)}
+.rv-t{display:flex;flex-wrap:wrap;gap:.5rem}
+.rcuentas{display:flex;flex-wrap:wrap;gap:.4rem 1.5rem;font-size:var(--t-small)}
+.rcuentas li{display:flex;align-items:center;gap:.4rem}
+.rcuentas b{font-size:1.25rem;font-weight:800}
+.rcuentas .g{width:18px;height:18px;color:var(--ink-3)}
+.rcuentas li[data-v="apto"] .g{color:var(--ok)}
+.rcuentas li[data-v="obs"] .g{color:var(--obs)}
+.rcuentas li[data-v="no"] .g{color:var(--bad)}
+.rgrupo h3{padding-bottom:.5rem;border-bottom:2px solid var(--ink);font-size:1.25rem;font-weight:700;letter-spacing:-.02em;line-height:1.2}
+.rrow{display:grid;grid-template-columns:9.75rem minmax(0,1fr);align-items:start;gap:.4rem 1rem;padding:.65rem 0 .65rem 1.1rem;border-bottom:1px solid var(--rule)} /* taste-skill-ignore: fila de un listado de reporte (tabla impresa) */
+.rrow .estado{justify-self:start}
+.rt{padding-top:.2rem;overflow-wrap:anywhere}
+.rt small{display:block;margin-top:.15rem;font-size:var(--t-small);color:var(--ink-2)}
+@container app (max-width:559px){.rrow{grid-template-columns:minmax(0,1fr)}.rt{padding-top:0}.meta{grid-template-columns:repeat(2,minmax(0,1fr));gap:.75rem 1rem}.hoja-h .orden{text-align:left}}
+.prosa{margin-top:.6rem;white-space:pre-wrap;overflow-wrap:anywhere}
+.sinval{margin-top:.6rem;color:var(--ink-2)}
+.firmas{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-top:.5rem}
+.firma{display:flex;flex-direction:column;justify-content:flex-end;gap:.15rem;min-height:7.5rem;padding:.7rem .9rem;border:2px solid var(--ink-3)}
+.firma-t{padding-top:.4rem;border-top:1px solid var(--ink-3);font-weight:700} /* taste-skill-ignore: la línea de la firma */
+.firma small{font-size:var(--t-small);color:var(--ink-2)}
+@container app (max-width:559px){.firmas{grid-template-columns:1fr}}
+
+.falta-imp{display:none}
+
+@media (prefers-reduced-motion:reduce){
+  .seg label:active{transform:none}
+}
+
+/* ============ impresión: negro sobre blanco, sin cortes, sin campos, con las placas y las cajas de firma ============
+   estilo.css ya quita los clip-path, la barra, el pie y lo marcado .no-print. Aquí se fuerzan los tokens a blanco y negro (aunque
+   quien imprime esté en modo oscuro) y el estado se lee por forma: glifo + palabra + barra (continua / rayas / sólida / segmentada). */
+@media print{
+  @page{margin:14mm}
+  :root[data-recinto][data-recinto][data-recinto]{color-scheme:light;
+    --paper:#fff;--surface:#fff;--surface-2:#fff;--raise:#fff;--ink:#000;--ink-2:#222;--ink-3:#444;--rule:#8a8a8a;--rule-soft:#ccc;
+    --accent:#000;--accent-soft:#fff;--accent-fg:#fff;--ok:#000;--ok-bg:#fff;--obs:#000;--obs-bg:#fff;--bad:#000;--bad-bg:#fff;--on-bad:#fff;--marker:#000}
+  html,body,.app,main,.cap{background:#fff!important;color:#000!important}
+  body{font-size:10.5pt;line-height:1.4}
+  #aviso,.resumen,.seg,input,textarea,select,.btn{display:none!important}
+  main[data-vista="reporte"]{display:flex;flex-direction:column}
+  .ed-papel{order:-1}                       /* el membrete y la hoja primero; la nota del instructor, al final */
+  .ed-estado .falta{display:none!important}
+  .falta-imp{display:block;padding:.5rem .8rem;border:2px solid #000}
+  .ed-estado,.ed-papel{padding:0!important}
+  .ed-estado .in{padding-block:.4rem 0}
+  .ed-papel .in{padding-inline:0}
+  .hoja{max-width:none;padding:0;gap:1rem}
+  .hoja-ident .placa-campus,.hoja-ident .placa-depr{padding:.55rem .8rem}
+  .rveredicto{border:2px solid #000;padding:.7rem 1rem .7rem 1.4rem}
+  .estado{border:1.25px solid #000;border-radius:0;background:#fff;color:#000}
+  .fila-v::before,.punto::before{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .falta,.nota-final{border:2px solid #000;background:#fff;color:#000}
+  .falta b,.falta div span,.nota-final *{color:#000}
+  .rgrupo,.rrow,.firmas,.rveredicto{break-inside:avoid}
+  .rgrupo h3{break-after:avoid}
+  .firma{border:1.25px solid #000;min-height:6.5rem}
+  .firma-t{border-top-color:#000}
+  .nota-v{font-size:2.5rem}
+}

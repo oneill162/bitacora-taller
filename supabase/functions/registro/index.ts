@@ -89,6 +89,8 @@ Deno.serve(async (req: Request) => {
         email:   texto("email", 160),
         // solo una solicitud: el rol lo cambia el superusuario, nunca el formulario
         solicita_instructor: cuerpo.solicita_instructor === true,
+        // el recinto elegido en la pantalla de entrada; el trigger descarta lo que no sea uno de los tres
+        recinto: texto("recinto", 16),
       },
     }),
   });

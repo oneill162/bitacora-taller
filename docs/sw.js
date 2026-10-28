@@ -7,20 +7,22 @@
 // Al publicar cambios, sube VERSION. Es lo que hace que los teléfonos
 // suelten la copia vieja: el cache lleva la versión en el nombre y al
 // activarse el worker nuevo borra los demás.
-const VERSION = "v12";
+const VERSION = "v16";
 const CACHE = `bitacora-${VERSION}`;
 
 // Lo que se baja de una al instalar: la app entera, supabase-js incluido.
 // Solo las fuentes se guardan la primera vez que se piden.
 const CASCO = [
   "./", "./index.html", "./app.js", "./resumen.js", "./graficas.js", "./dashboard.js", "./nucleo.js", "./router.js", "./acceso.js", "./editor.js", "./admin.js", "./codigo.js", "./tablero.js", "./local.js", "./config.js",
-  "./protocolo.js", "./taller.js", "./informes.js", "./estilo.css", "./manifest.json",
+  "./protocolo.js", "./taller.js", "./informes.js", "./campus.js", "./manifest.json",
+  "./tokens.css", "./estilo.css", "./v-acceso.css", "./v-dashboard.css", "./v-tablero.css", "./v-editor.css",
+  "./img/itpr-marca.webp", "./img/tiburon.webp", "./img/puma.webp", "./img/itpr-manati.webp", "./img/depr.webp", "./img/favicon.png",
   "./vendor/supabase.js", "./vendor/qr.js",
   "./icono-192.png", "./icono-512.png"
 ];
 
-// Lo único que queda fuera son las fuentes, y son adorno: estilo.css declara
-// alternativas del sistema para cuando no bajan.
+// Lo único que queda fuera son las fuentes (Libre Franklin), que se guardan la primera vez que se piden.
+// estilo.css declara una cara local ajustada (Franklin Ajustada) para cuando todavía no han bajado.
 const CDN = ["fonts.googleapis.com", "fonts.gstatic.com"];
 
 self.addEventListener("install", ev => {
