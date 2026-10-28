@@ -19,7 +19,7 @@ for (const u of casco) if (u !== "" && !existsSync(join(DOCS, u))) problemas.pus
 
 const todos = [];
 (function recorrer(d) { for (const f of readdirSync(d)) { const p = join(d, f); statSync(p).isDirectory() ? recorrer(p) : todos.push(relative(DOCS, p).split("\\").join("/")); } })(DOCS);
-const EXENTOS = new Set(["sw.js", "img/LEEME.md"]);
+const EXENTOS = new Set(["sw.js", "img/LEEME.md", "fonts/OFL.txt"]);
 for (const f of todos) if (!EXENTOS.has(f) && !enCasco.has(f)) problemas.push(`${f} está en docs/ y falta en CASCO`);
 
 // lo que cada archivo pide

@@ -387,9 +387,9 @@ justificación, en `.diseno/veredicto.md`.
   sobre `#05568D` ni sobre oro sin su placa blanca; ningún escudo va sobre el rojo de marca. Tamaños mínimos
   (ancho CSS): tiburón 72, puma 64, marca ITPR 24, lockup de Manatí 160, DEPR 140. `pruebas/marcas.mjs` lo
   verifica en todas las pantallas.
-- **Tipografía.** Libre Franklin llega por el enlace de Google Fonts (el service worker la guarda la primera
-  vez que se pide). Mientras no baja se usa la cara local *Franklin Ajustada*, con las métricas ajustadas
-  para que el texto no salte.
+- **Tipografía.** Libre Franklin (400 a 800) va incluida en `docs/fonts/` con su licencia OFL y el service
+  worker la guarda con el resto de la app: no se pide nada a Google y abre igual sin señal. La cara local
+  *Franklin Ajustada* queda de respaldo por si un archivo no carga.
 - **Agregar un recinto.** (1) Un bloque `[data-recinto="nuevo"]` con las dos paletas (claro y oscuro) en
   `docs/tokens.css`, con el contraste verificado. (2) Una entrada en `RECINTOS` y en `TEMA` de `docs/campus.js`
   y el color de la barra en el script del `<head>` de `docs/index.html`. (3) Su escudo en `docs/img/`

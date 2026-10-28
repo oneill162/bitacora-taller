@@ -8,6 +8,7 @@
 import assert from "node:assert/strict";
 import { join } from "node:path";
 import { mkdirSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 
 const { pixelesDistintos } = await import("./auditoria-marcas.mjs");
 const { nuevaPagina, entrar, prueba, terminar, PERFILES, EQUIPOS, DIAGS, HOY, escrituras, navegador, URL_APP } = await import("./arnes.mjs");
@@ -459,6 +460,30 @@ await prueba("cartel QR: marca del recinto, QR, aval DEPR; en impresión es negr
   await page.emulateMedia({ media: "screen" });
   assert.deepEqual(errores, []);
   await ctx.close();
+});
+
+await prueba("cartel QR: el PNG descargable lleva el escudo del recinto en una franja blanca bajo el QR, sin tocarlo", async () => {
+  for (const recinto of ["itpr", "sanjuan", "manati"]) {
+    const { ctx, page, errores } = await nuevaPagina({ viewport: { width: 1100, height: 900 } });
+    await abrir(page, { recinto, modo: "oscuro" });
+    await irCodigo(page);
+    const [dl] = await Promise.all([page.waitForEvent("download"), page.click("#b-png")]);
+    assert.equal(dl.suggestedFilename(), "bitacora-taller-qr.png");
+    const buf = await readFile(await dl.path());
+    assert.deepEqual([buf.readUInt32BE(16), buf.readUInt32BE(20)], [1024, 1248], `${recinto}: el PNG mide 1024 x 1248`);
+    const r = await page.evaluate(async b64 => {
+      const bm = await createImageBitmap(await (await fetch("data:image/png;base64," + b64)).blob());
+      const c = document.createElement("canvas"); c.width = bm.width; c.height = bm.height;
+      const g = c.getContext("2d"); g.drawImage(bm, 0, 0);
+      const px = (x, y, w, h) => { const d = g.getImageData(x, y, w, h).data; let n = 0; for (let i = 0; i < d.length; i += 4) if (d[i] < 250 || d[i + 1] < 250 || d[i + 2] < 250) n++; return n; };
+      return { qr: px(0, 0, 1024, 1024), escudo: px(48, 1024 + 30, 200, 164), izq: px(0, 1024, 40, 224), abajo: px(0, 1024 + 224 - 20, 1024, 20) };
+    }, buf.toString("base64"));
+    assert.ok(r.qr > 100000, `${recinto}: el QR sigue dibujado`);
+    assert.ok(r.escudo > 3000, `${recinto}: se ve el escudo en la franja`);
+    assert.equal(r.izq + r.abajo, 0, `${recinto}: el escudo tiene aire a la izquierda y abajo`);
+    assert.deepEqual(errores, []);
+    await ctx.close();
+  }
 });
 
 await terminar();

@@ -67,8 +67,8 @@ trae su paleta completa.
 
 ### Tipografía: una familia, cinco escalones
 
-`--ff` = Libre Franklin 400–800 (enlace de Google Fonts en `index.html`, el service worker la guarda al primer uso). Si no ha
-bajado se pinta con "Franklin Ajustada", una cara local con `size-adjust` (métricas aproximadas).
+`--ff` = Libre Franklin 400–800, incluida en `docs/fonts/` (`@font-face` en `estilo.css`, licencia OFL en `OFL.txt`, precacheada por el service
+worker). De respaldo, "Franklin Ajustada": una cara local con `size-adjust` (métricas aproximadas).
 
 | Escalón | Valor | Clase / uso |
 |---|---|---|

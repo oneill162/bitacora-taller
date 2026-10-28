@@ -102,6 +102,21 @@ button.t-fila:active{transform:scale(.995);transition-duration:.08s}
 .lectura li span:not(.estado){font-size:var(--t-small);color:var(--ink)}
 @container app (max-width:1099px){.lectura{position:static}}
 
+/* El día en el teléfono: la primera fila de estudiantes tiene que asomar sin bajar medio kilómetro.
+   Las cifras pasan a renglón (número + etiqueta) y se aprietan los espacios; nada se quita. */
+@container app (max-width:759px){
+  .tab-hero .hero-in{padding-block:1.25rem}
+  .tab-hero .hero-txt{gap:.6rem}
+  .tab-barra{padding-block:.9rem 0}
+  .tab-barra .pestanas,.dia-izq .pestanas{margin-bottom:.6rem}
+  .resumen-dia .rd{flex-direction:row;align-items:center;gap:.75rem;padding:.75rem var(--m)}
+  .resumen-dia .rd b{font-size:2rem}
+  .dia-sec{padding-block:1.25rem 2rem}
+  .dia-izq .h2{margin-bottom:.75rem}
+  .filtros-t{gap:.5rem;margin-bottom:.75rem}
+  .filtros-t .btn.chico{min-height:44px}
+}
+
 /* ========== informes, inventario, revisar, gente ========== */
 .t-sec{padding-block:clamp(2.5rem,6cqw,5rem)}
 .t-cab{display:flex;align-items:flex-end;justify-content:space-between;gap:1.25rem;flex-wrap:wrap;margin-bottom:1.5rem}

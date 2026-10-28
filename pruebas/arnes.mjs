@@ -51,8 +51,6 @@ export async function simularSupabase(ctx) {
   // y una corrida no contamina a la siguiente.
   const parches = new Map();
   const perfiles = () => PERFILES.map(p => ({ ...p, ...parches.get(p.id) }));
-  await ctx.route("https://fonts.googleapis.com/**", r => r.fulfill({ contentType: "text/css", body: "" }));
-  await ctx.route("https://fonts.gstatic.com/**", r => r.abort());
   await ctx.route("https://glwinbslxgurmzyvttyo.supabase.co/**", async route => {
     const u = new URL(route.request().url());
     const json = (body, status = 200) => route.fulfill({

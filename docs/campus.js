@@ -433,7 +433,10 @@ export function prepararEntradas(raiz = document) {
 }
 
 // Un titular con un nombre largo ("Guillermina") se achica por pasos hasta caber. Nunca se corta de lado.
-const desborda = h => $$(".linea > span", h).some(s => s.scrollWidth > s.clientWidth + 1) || h.scrollWidth > h.clientWidth + 1;
+// También cuenta que la caja del titular sea más ancha que su contenedor: una palabra más larga que el espacio
+// (MAXIMILIANO a 44 px en un teléfono de 320) estira la caja y su contenido "cabe" en ella, así que scrollWidth no lo ve.
+const disponible = h => { const p = h.parentElement, c = getComputedStyle(p); return p.clientWidth - parseFloat(c.paddingLeft) - parseFloat(c.paddingRight); };
+const desborda = h => $$(".linea > span", h).some(s => s.scrollWidth > s.clientWidth + 1) || h.scrollWidth > h.clientWidth + 1 || h.offsetWidth > disponible(h) + 1;
 export function ajustarTitulares(raiz = document) {
   $$(".h1", raiz).forEach(h => {
     h.style.removeProperty("--fit");

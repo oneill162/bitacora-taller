@@ -1,6 +1,6 @@
 import { NOMBRE_TALLER } from "./config.js";
 import { sb, $, app, estado, esc, aviso, explicar, conCorte, conectado } from "./nucleo.js";
-import { RECINTOS, ilustracion, placaHero } from "./campus.js";
+import { RECINTOS, recintoActual, ilustracion, placaHero } from "./campus.js";
 import { pintar } from "./router.js";
 import { descargar } from "./admin.js";
 
@@ -118,28 +118,41 @@ export function montarCodigo(){
   $("#b-volver").onclick = () => { estado.vista = "panel"; pintar(); };
   $("#b-imprimir").onclick = () => window.print();
   // El SVG se pasa por un lienzo para bajarlo como PNG: es lo que aceptan
-  // las plataformas escolares, que no siempre dejan subir SVG.
+  // las plataformas escolares, que no siempre dejan subir SVG. Debajo del QR va una
+  // franja blanca con el escudo del recinto: nunca encima del QR (las marcas no se
+  // cruzan con nada, docs/img/LEEME.md) y con aire de sobra alrededor.
   $("#b-png").onclick = async () => {
     const svg = $("#qr svg");
     if(!svg){ aviso("Todavía no hay QR que descargar."); return; }
-    const lado = 1024;
-    const blob = new Blob([new XMLSerializer().serializeToString(svg)], { type:"image/svg+xml" });
-    const src = URL.createObjectURL(blob);
-    const img = new Image();
-    img.onload = () => {
+    const cargar = src => new Promise((ok, mal) => { const i = new Image(); i.onload = () => ok(i); i.onerror = mal; i.src = src; });
+    const src = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(svg)], { type:"image/svg+xml" }));
+    try{
+      const r = RECINTOS[recintoActual()];
+      const [qr, escudo] = await Promise.all([cargar(src), cargar(r.crest).catch(() => null)]);   // sin escudo, la franja queda con el texto
+      const lado = 1024, franja = 224, alto = 160;
       const c = document.createElement("canvas");
-      c.width = c.height = lado;
+      c.width = lado; c.height = lado + franja;
       const g = c.getContext("2d");
-      g.fillStyle = "#fff"; g.fillRect(0, 0, lado, lado);
-      g.drawImage(img, 0, 0, lado, lado);
-      URL.revokeObjectURL(src);
+      g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height);
+      g.drawImage(qr, 0, 0, lado, lado);
+      let x = 48;
+      if(escudo){
+        const ancho = Math.round(alto * r.w / r.h);
+        g.drawImage(escudo, x, lado + (franja - alto) / 2, ancho, alto);
+        x += ancho + 40;
+      }
+      const letra = getComputedStyle(document.body).fontFamily;
+      g.fillStyle = "#111"; g.textBaseline = "alphabetic";
+      g.font = `800 46px ${letra}`;
+      g.fillText("Bitácora de Diagnóstico", x, lado + franja / 2 - 6);
+      g.fillStyle = "#444"; g.font = `500 32px ${letra}`;
+      g.fillText(`${NOMBRE_TALLER} · ${r.largo}`, x, lado + franja / 2 + 42);
       const a = document.createElement("a");
       a.href = c.toDataURL("image/png");
       a.download = "bitacora-taller-qr.png";
       a.click();
-    };
-    img.onerror = () => { URL.revokeObjectURL(src); aviso("No se pudo convertir el QR a imagen."); };
-    img.src = src;
+    } catch(_){ aviso("No se pudo convertir el QR a imagen."); }
+    finally { URL.revokeObjectURL(src); }
   };
   pintarQR();
 }

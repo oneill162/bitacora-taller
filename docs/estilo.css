@@ -14,10 +14,15 @@
    nunca tienen que pelear con él. */
 @layer reset;
 
-/* ========== tipografía de respaldo ==========
-   Libre Franklin llega por el enlace de Google Fonts (el service worker la guarda al primer uso). Mientras no
-   baje, o si no hay señal en la primera visita, el texto se pinta con una cara local ajustada para que el
-   titular y las cifras casi no se muevan cuando llegue la buena. Las métricas son aproximadas. */
+/* ========== tipografía ==========
+   Libre Franklin va incluida en docs/fonts/ (licencia OFL en OFL.txt) y el service worker la guarda con la app:
+   no se pide nada a Google y abre igual sin señal. "Franklin Ajustada" queda de respaldo, con métricas
+   aproximadas, por si un archivo de fuente no llega a cargar. */
+@font-face{font-family:"Libre Franklin";font-style:normal;font-weight:400;font-display:swap;src:url("fonts/LibreFranklin-Regular.ttf") format("truetype")}
+@font-face{font-family:"Libre Franklin";font-style:normal;font-weight:500;font-display:swap;src:url("fonts/LibreFranklin-Medium.ttf") format("truetype")}
+@font-face{font-family:"Libre Franklin";font-style:normal;font-weight:600;font-display:swap;src:url("fonts/LibreFranklin-SemiBold.ttf") format("truetype")}
+@font-face{font-family:"Libre Franklin";font-style:normal;font-weight:700;font-display:swap;src:url("fonts/LibreFranklin-Bold.ttf") format("truetype")}
+@font-face{font-family:"Libre Franklin";font-style:normal;font-weight:800;font-display:swap;src:url("fonts/LibreFranklin-ExtraBold.ttf") format("truetype")}
 @font-face{font-family:"Franklin Ajustada";font-style:normal;font-weight:400 500;
   src:local("Arial"),local("ArialMT"),local("Helvetica Neue"),local("Helvetica"),local("Roboto"),local("Liberation Sans");
   size-adjust:106%;ascent-override:91%;descent-override:23%;line-gap-override:0%}
